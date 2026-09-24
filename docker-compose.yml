@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_INITDB_ARGS: "--locale=en_US.UTF-8"
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      - internal
+
+  ollama:
+    image: ollama/ollama:0.9.6
+    container_name: ollama_service
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - internal
+
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: ollama_init
+    depends_on:
+      - ollama
+    volumes:
+      - ./init-ollama.sh:/init-ollama.sh
+    command: ["sh", "/init-ollama.sh"]
+    networks:
+      - internal
+
+  web:
+    build: .
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - ollama-init
+      - db
+    networks:
+      - internal
+    ports:
+      - "8000:8000"
+
+volumes:
+  pg_data:
+  ollama_models:
+
+networks:
+  internal:
+    driver: bridge
