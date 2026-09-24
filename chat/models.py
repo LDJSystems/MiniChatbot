@@ -25,8 +25,9 @@ class Mensaje(models.Model):
 
     class Meta:
         db_table = 'mensaje'
+        ordering = ['creado_en']
         indexes = [
-            models.Index(fields=['sesion'], name='idx_mensaje_sesion'),
+            models.Index(fields=['sesion', 'creado_en'], name='idx_mensaje_sesion_fecha'),
         ]
         constraints = [
             CheckConstraint(condition=Q(rol__in=['user', 'bot']), name='chk_mensaje_rol')

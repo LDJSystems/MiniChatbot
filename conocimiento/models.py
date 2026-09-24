@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
 
 class BaseConocimiento(models.Model):
     titulo = models.CharField(max_length=255)
@@ -8,7 +10,7 @@ class BaseConocimiento(models.Model):
     colectivo = models.CharField(max_length=100)
     url_oficial = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
-    vector_busqueda = models.TextField(editable=False) 
+    vector_busqueda = SearchVectorField(editable=False)
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
@@ -18,6 +20,7 @@ class BaseConocimiento(models.Model):
             models.Index(fields=['provincia'], name='idx_bc_provincia'),
             models.Index(fields=['campo_estudio'], name='idx_bc_campo'),
             models.Index(fields=['colectivo'], name='idx_bc_colectivo'),
+            GinIndex(fields=['vector_busqueda'], name='idx_bc_fts_gin'),
         ]
 
 class StagingCursos(models.Model):
@@ -33,3 +36,6 @@ class StagingCursos(models.Model):
 
     class Meta:
         db_table = 'staging_cursos'
+        indexes = [
+            models.Index(fields=['estado'], name='idx_staging_estado'),
+        ]

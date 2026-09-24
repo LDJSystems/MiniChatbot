@@ -9,7 +9,7 @@ class Lead(models.Model):
     campo_estudio = models.CharField(max_length=100)
     colectivo = models.CharField(max_length=100)
     consentimiento_rgpd = models.BooleanField()
-    sesion_uuid = models.UUIDField(blank=True, null=True) 
+    sesion_uuid = models.UUIDField(blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     procesado = models.BooleanField(default=False)
 
@@ -32,9 +32,12 @@ class ConsultaFallida(models.Model):
 
     class Meta:
         db_table = 'consulta_fallida'
+        indexes = [
+            models.Index(fields=['procesado'], name='idx_cf_procesado'),
+        ]
 
 class ContadorDemanda(models.Model):
-    base_conocimiento_id = models.BigIntegerField() 
+    base_conocimiento_id = models.BigIntegerField()
     provincia = models.CharField(max_length=100)
     campo_estudio = models.CharField(max_length=100)
     colectivo = models.CharField(max_length=100)
@@ -43,3 +46,12 @@ class ContadorDemanda(models.Model):
 
     class Meta:
         db_table = 'contador_demanda'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['base_conocimiento_id', 'provincia', 'campo_estudio', 'colectivo'],
+                name='uq_contador_demanda'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['base_conocimiento_id'], name='idx_contador_bc'),
+        ]
