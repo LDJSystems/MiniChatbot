@@ -4,3 +4,4 @@ gunicorn
 django-environ
 django-ratelimit
 ollama
+django-cors-headers

@@ -1,109 +1,267 @@
-### 1. Propósito Principal y Estrategia de Conversión del Chatbot
-* **Objetivo Primario (Información):** Actuar como un asesor virtual experto para resolver de forma rápida y natural dudas detalladas sobre la oferta formativa, cursos, requisitos y metodologías de CEFYE.
-* **Objetivo Secundario (Conversión flexible / Doble vía):** 
-  * **Vía Directa (Autogestión):** Proporcionar un enlace directo y visible hacia el formulario oficial de matriculación de la web para los usuarios.
-  * **Vía Asistida (Captación de Leads):** Ofrecer la opción de que el bot recopile los datos de contacto básicos (nombre, teléfono/email) y avise al equipo de gestion para que un asesor humano se ponga en contacto con el cliente (opción prevista como la más utilizada).
-* **Restricción Técnica / Alcance:** Se descarta procesar pagos, datos bancarios o documentos sensibles de matrícula *dentro* de la ventana del chat para evitar complejidades de seguridad, normativas de privacidad (RGPD) y fricción en la experiencia de usuario.
+# MiniChatbot — Asesor Virtual CEFYE
 
-### 2. Personalidad y Tono de Voz del Chatbot
-* **Estilo Elegido:** Cercano, Empático y Profesional (El "Asesor de Confianza").
-* **Características:** Utiliza un trato respetuoso, cálido y humano (tratamiento de tú pero sin recurrir a emojis). Está diseñado específicamente para inspirar confianza y tranquilizar a alumnos que deciden retomar su formación, transmitiendo un sólido respaldo institucional combinado con un acompañamiento paciente y comprensivo.
+Chatbot de asesoramiento formativo para CEFYE. Backend Django con pipeline RAG híbrido sobre PostgreSQL y generación de respuestas mediante Ollama (Llama 3.2) en local. Widget Vanilla JS desplegable como un único `<script>`.
 
-### 3. Fuentes de Información, Presupuesto e Inserción de IA Local (Ollama)
-* **Estrategia Económica (Coste Cero en APIs):** Se descartan por completo las APIs de pago por token (como OpenAI o Anthropic) para evitar costes recurrentes y garantizar el control total de los datos. La capacidad de redacción natural se delega en un modelo de lenguaje local de código abierto (*open-source*) gestionado mediante un demonio de **Ollama**.
-* **Gestión de Recursos y Modelo Local:** Para evitar la saturación de CPU y RAM en el servidor, se prohíbe el uso de modelos pesados. El sistema operará con un LLM ligero y altamente optimizado (como *Phi-3-mini* o variantes cuantizadas a 4 bits), ajustado específicamente para minimizar la latencia de respuesta (*Time-to-First-Token*).
-* **Ingesta de Datos y Contexto RAG:** Se descartan procesos automatizados de *web scraping* en caliente para prevenir fallos ante modificaciones de diseño web. Toda la información oficial se consolida mediante cargas estructuradas (JSON/CSV) (como `dataset_cefye.jsonl`) gestionadas desde el panel de Django, sirviendo como la base de conocimiento documental para el motor de recuperación (*Retrieval*).
+---
 
-### 4. Mecanismo Lógico y Motor de Respuesta (Patrón RAG Híbrido con Ollama)
-* **Arquitectura RAG Híbrida (Filtros Duros + FTS):** Para mantener un coste de infraestructura cero en APIs externas, evitar falsos positivos y ofrecer respuestas precisas, el sistema adopta un flujo de dos fases estrictas:
-  1. **Fase de Recuperación (Retriever Híbrido):** La base de datos aplica primero un filtrado sobre las variables categóricas (`provincia`, `campo_estudio` y `colectivo/destinatarios`) para restringir geográficamente o por perfil los cursos no aptos, permitiendo flexibilidad en coberturas nacionales o multi-colectivo. Posteriormente, sobre ese subconjunto, PostgreSQL utiliza su motor de búsqueda de texto completo (FTS) con un índice GIN y un umbral de ranking optimizado (`rank >= 0.12`) para evitar falsos rechazos causados por la longitud de los textos.
-  2. **Fase de Generación (Generator):** El backend de Django toma exclusivamente esos datos oficiales validados, los empaqueta dentro de un contexto estricto y se los envía de manera local al demonio de **Ollama**.
-* **Red de Seguridad contra Alucinaciones:** Ollama no inventa respuestas; se limita a redactar de forma natural y empática basándose *exclusivamente* en la información verídica recuperada tras el pre-filtrado y el umbral de ranking. Si la búsqueda combinada no encuentra datos válidos que superen el corte, el sistema frena la llamada al modelo local y activa el flujo de fallback (derivación directa al equipo de gestión), garantizando un control absoluto de la información.
+## Estructura del proyecto
 
-### 5. Integración y Experiencia de Usuario (Frontend)
-* **Ubicación Visual y Accesibilidad:** El chat se presenta como un panel desplegable colapsable, accionado desde un botón flotante situado de forma fija en la esquina inferior derecha de la web oficial de CEFYE, mimetizándose con la identidad visual corporativa.
-  
-* **Flujo de Filtros Flexible (No Bloqueante):** Los selectores de variables categóricas (`provincia`, `campo_estudio` y `colectivo/destinatarios`) actúan como herramientas de apoyo opcionales o contextuales, evitando bloquear la caja de texto libre inicial. Esto permite procesar consultas amplias o de ámbito nacional sin incrementar la tasa de rebote por fricción en la interfaz.
-  
-* **Desarrollo en Vanilla JavaScript con Arquitectura Modular:** Se construye utilizando JavaScript puro y CSS nativo apoyado por patrones de componentes limpios, evitando frameworks pesados (React, Vue, Angular) para prevenir sobrecargas de red (*bloatware*), pero estructurando el código para garantizar la mantenibilidad del DOM.
+```
+MiniChatbot/
+├── chat/           # Sesiones, mensajes y leads (Dev B)
+├── conocimiento/   # Base de conocimiento, FTS e ingesta (Dev A)
+├── operaciones/    # Telemetría, analítica y mejora continua (Dev B)
+├── config/         # Configuración global de Django
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── init-ollama.sh
+├── manage.py
+├── requirements.txt
+└── setup.md
+```
 
-* **Aislamiento de Código y Estándares de Accesibilidad (a11y):** El script y los estilos se ejecutan dentro de entornos protegidos (mediante patrones IIFE o Shadow DOM) para evitar colisiones con la página host. Asimismo, se implementa una gestión rigurosa de accesibilidad (trampas de foco *focus trap*, atributos ARIA y navegación completa por teclado) para garantizar la compatibilidad con tecnologías de asistencia.
+### Apps y propietario
 
-### 6. Gestión de Sesiones, Historial y Captación de Leads
-* **Historial de Conversación (Efímero):** El identificador único de la sesión (UUID) y el estado actual de los filtros de selección previa se almacenan en el `sessionStorage` del navegador web. Este identificador y su contexto sobreviven mientras el usuario navega por las distintas páginas de CEFYE, pero se destruyen de manera automática al cerrar la pestaña.
-  
-* **Limpieza de Base de Datos (Purga Automatizada):** Los mensajes vinculados al UUID se alojan temporalmente en PostgreSQL. Un proceso automatizado (*Cron Job*) en el servidor ejecuta barridos periódicos basados en la expiración de la marca de tiempo de inactividad para borrar los registros obsoletos, cumpliendo estrictamente con los criterios de minimización de datos del RGPD.
-  
-* **Aislamiento de Leads, Metadatos y Privacidad:** Las tablas encargadas de capturar los datos comerciales (`chatbot_leads`) se diseñan completamente desacopladas del historial volátil mediante un esquema relacional independiente. Para dotar de contexto inmediato al equipo comercial, cada lead registrado almacena los filtros aplicados (`provincia`, `campo_estudio` y `colectivo/destinatarios`) junto a sus datos de contacto. Si una sesión de chat expira y se purga, la información del lead no sufre borrados en cascada, garantizando la retención segura del contacto comercial.
-  
-* **Restricciones de Integridad en Base de Datos:** Se aplican reglas estrictas a nivel de esquema (`CheckConstraints`) para rechazar de forma física cualquier inserción de leads que no contenga al menos una vía de contacto válida (email o teléfono) o que carezca de la marcación afirmativa e inmutable del consentimiento RGPD.
+| App | Propietario | Responsabilidad principal |
+|---|---|---|
+| `conocimiento` | Dev A | `BaseConocimiento`, trigger GIN/FTS, ingesta JSON/CSV, pipeline RAG, endpoint `ask/` |
+| `chat` | Dev B | `Sesion`, `Mensaje`, `Lead`, endpoints `ask/` (delegado) y `lead/`, widget Vanilla JS |
+| `operaciones` | Dev B | `ConsultaFallida`, `ContadorDemanda`, telemetría y panel de analítica |
+| `config` | Ambos (PR conjunta) | `settings.py`, URLs raíz, variables de entorno |
 
-### 7. Arquitectura de la API y Seguridad Perimetral
-* **Separación de Endpoints Funcionales:** Se diseñan controladores independientes para aislar responsabilidades de negocio:
-  * `POST /api/chat/ask/`: Encargado de recibir el payload híbrido (consulta de texto y filtros opcionales de provincia, campo de estudio y colectivos), ejecutar la búsqueda y el filtrado flexible en PostgreSQL y orquestar la respuesta generada localmente por Ollama.
-  * `POST /api/chat/lead/`: Canal exclusivo y seguro para validar e insertar los datos de contacto captados.
-* **Blindaje contra Abusos y Mitigación de Denegación de Servicio (DoS):** Se implementa limitación estricta de peticiones por dirección IP y huella de cliente (utilizando herramientas como `django-ratelimit`) para mitigar vectores de ataque de denegación de servicio, ataques de fuerza bruta e inserción masiva de spam automatizado en los formularios de leads.
-* **Control de Origen Estricto (CORS):** Restricción rígida de dominios autorizados mediante `django-cors-headers`, permitiendo exclusivamente las peticiones HTTP originadas en los subdominios oficiales de CEFYE, bloqueando de forma tajante cualquier comodín abierto (`*`) y aplicando políticas de cabeceras seguras contra filtrado de datos (CSRF/XSS).
+---
 
-### 8. Diseño del Esquema de Datos para Búsqueda (Arquitectura Híbrida)
-* **División Estructural de los Cursos:** En lugar de guardar toda la información en un solo bloque de texto, la tabla se divide en dos partes para evitar falsos positivos en las búsquedas:
-  * **Filtros Estrictos:** Columnas exactas para `provincia`, `campo_estudio` y `colectivo/destinatarios` (empleados, desempleados, autónomos, jóvenes, etc.). Sirven para descartar de forma mecánica y absoluta los cursos que no encajen con el perfil del usuario.
-  * **Texto Libre:** Columnas para el temario, descripción y título. Aquí es donde se buscarán las coincidencias de palabras.
-* **Doble Sistema de Índices:** Para que la base de datos no se sature leyendo fila por fila, se usan índices tradicionales (B-Tree) que aplican los "Filtros Estrictos" en milisegundos. Solo después de ese primer cribado, un índice avanzado (GIN) busca dentro del "Texto Libre" de los cursos que han quedado.
-* **Automatización en PostgreSQL (Trigger):** La preparación del texto para que el chatbot lo entienda se calcula automáticamente en la base de datos mediante un *Trigger* cada vez que se guarda o actualiza un curso. En este vector solo se procesa el "Texto Libre"; los "Filtros Estrictos" se mantienen aislados como columnas relacionales puras para evitar interferencias en la recuperación semántica.
-* **Adaptación al Español (FTS):** El buscador de PostgreSQL se configura con el diccionario oficial en español (`pg_catalog.spanish`). Esto le permite ignorar palabras vacías (como "el", "de", "para") y agrupar términos por su raíz (por ejemplo, lematizando variantes como "formación", "formar" o "formativo").
-  
-### 9. Lógica de Desambiguación, Criterio y Ranking Híbrido
-* **Pre-Filtrado Categórico Flexible:** Antes de aplicar cualquier cálculo de texto, la base de datos acota los resultados utilizando los filtros opcionales de provincia, campo de estudio y colectivo/destinatarios aportados por el usuario, permitiendo contemplar ofertas de ámbito nacional o multi-perfil sin descartar registros de forma ciega y restrictiva.
-* **Ponderación de Relevancia (Weights):** Sobre el conjunto de cursos recuperados, la base de datos jerarquiza el contenido léxico mediante `setweight` en PL/pgSQL:
-  * **Peso A (Factor 1.0):** Asignado al `titulo`. Las coincidencias en este campo determinan la intención principal de la búsqueda formativa.
-  * **Peso B (Factor 0.4):** Asignado al `contenido` (temarios y requisitos). Aporta contexto secundario sin sobreescribir la relevancia de los títulos.
-* **Cálculo de Ranking (`ts_rank`):** El backend de Django ejecuta la función `SearchRank` para calcular una puntuación cruzando la densidad léxica de la consulta contra los registros filtrados.
-* **Umbral de Corte Optimizado (Threshold):** Se establece un umbral de aceptación a nivel de base de datos (`rank >= 0.12`), calibrado específicamente para evitar falsos rechazos en consultas cortas o descripciones extensas.
-* **Prevención de Alucinaciones en Llama 3:** Este umbral actúa como el "guardián" de Ollama. Si la búsqueda combinada devuelve cero fragmentos válidos que superen el corte, la petición al LLM local se aborta físicamente antes de enviarse. El sistema transiciona de inmediato al estado de contingencia (Fallback) para derivar la consulta al equipo de gestión, evitando que el modelo invente respuestas carentes de respaldo documental oficial.
+## 1. Propósito y estrategia de conversión
 
-### 10. Telemetría, Analítica y Mejora Continua (Consultas Exitosas y Fallidas)
-* **Registro Selectivo de Anomalías (Fallbacks):** Se persisten únicamente las consultas que activan la "Red de Seguridad" (Fallback), ya sea por no encontrar registros en el pre-filtrado de variables categóricas o por no superar el umbral de `ts_rank >= 0.12` en PostgreSQL. Se almacena el texto libre y los filtros asociados (`provincia`, `campo_estudio` y `colectivo/destinatarios`) en la tabla relacional independiente `ConsultaFallida`.
-* **Analítica Agregada de Éxitos (Sin Logs Masivos de Texto):** Para evitar la saturación de I/O en la base de datos y cumplir estrictamente con los criterios de minimización de datos (RGPD), se descarta el almacenamiento de historiales masivos con el texto plano de las consultas exitosas. En su lugar, el sistema emplea contadores agregados de demanda vinculados a los identificadores de cursos y filtros categóricos, permitiendo medir el interés formativo de manera eficiente y anónima.
-* **Flujo de Negocio (Panel Admin):** El equipo de CEFYE utiliza la tabla de telemetría de fallos desde el panel de control de Django para identificar de forma empírica qué combinaciones geográficas o de colectivos carecen de oferta formativa o respuestas adecuadas. Una vez redactada e insertada la nueva entrada en la `BaseConocimiento` para cubrir esa carencia, el registro se marca con el flag `procesado = True`, retroalimentando el sistema sin necesidad de reentrenar ningún modelo.
+- **Objetivo primario (Información):** Actuar como asesor virtual experto que resuelve de forma rápida y natural dudas sobre la oferta formativa, cursos, requisitos y metodologías de CEFYE.
+- **Objetivo secundario (Conversión — doble vía):**
+  - **Vía directa (autogestión):** Enlace visible al formulario oficial de matriculación.
+  - **Vía asistida (captación de leads):** El bot recoge los datos de contacto básicos (nombre, teléfono/email) y avisa al equipo de gestión para que un asesor humano contacte al usuario. Es la vía prevista como más utilizada.
+- **Fuera de alcance:** Pagos, datos bancarios o documentos de matrícula dentro del chat.
 
-### 11. Esquema Relacional y Aislamiento de Dominios
-* **Patrón de Desacoplamiento Estricto:** Se prohíbe terminantemente el uso de claves foráneas (*Foreign Keys*) que vinculen el dominio de datos volátil (sesiones efímeras y mensajes del chat) con los dominios de datos persistentes (captación de leads comerciales y telemetría).
-* **Protección contra Pérdida de Datos:** Esta separación estructural es crítica. Garantiza que cuando el proceso automatizado (*Cron Job*) ejecute la purga de historiales de chat inactivos, no se desencadene un borrado en cascada (`ON DELETE CASCADE`) que destruya accidentalmente el trabajo de captación del equipo comercial o las analíticas.
-* **Integridad Relacional Interna:** La única relación de dependencia fuerte a nivel de base de datos se mantiene exclusivamente entre la entidad `Sesión` y sus `Mensajes`. Al destruir la sesión temporal, todo su rastro de texto se elimina limpiamente a nivel de motor.
-* **Validación Física y de Negocio (Check Constraints):** PostgreSQL asume el rol de guardián final del negocio. El esquema incluye restricciones físicas que bloquean a nivel de motor la inserción de cualquier *Lead* que llegue desde la API sin información de contacto válida (impidiendo que email y teléfono sean nulos a la vez), sin el consentimiento afirmativo del RGPD (`True`), o sin los metadatos de contexto asociados (`provincia`, `campo_estudio` y `colectivo/destinatarios`) seleccionados por el usuario, blindando el sistema ante fallos de validación en el cliente.
+---
 
-### 12. Contrato de Datos y Payloads de la API
-* **Estandarización JSON y Payload Híbrido:** La comunicación bidireccional entre el widget frontend y el backend de Django obedece a contratos de datos estrictos en formato JSON para evitar fallos de parseo, inyecciones o transiciones de estado erróneas en el cliente. El endpoint de búsqueda (`/api/chat/ask/`) se actualiza para procesar un payload estructurado que integra la consulta de texto junto con los filtros categóricos opcionales de selección previa (`provincia`, `campo_estudio` y `colectivo/destinatarios`).
-* **Control de Estado Centralizado (Backend-Driven UI):** Las respuestas del endpoint de búsqueda entregan el texto redactado por Ollama junto con banderas lógicas críticas (como un booleano `requiere_accion_comercial` o `fallback_activado`). El backend es la única fuente de verdad: el frontend se limita a leer estas banderas para decidir si mantiene el flujo conversacional abierto o si fuerza la transición visual al modo de contingencia (ocultando el input de texto y desplegando botones).
-* **Validación Estricta de Payloads:** Tanto el canal de búsqueda como el endpoint de captación de leads (`/api/chat/lead/`) exigen estructuras cerradas. Si por manipulación del cliente se recibe un lead sin vías de contacto válidas y consentimiento RGPD en `true`, o sin los metadatos obligatorios de contexto, la API aborta la ejecución de inmediato devolviendo un código HTTP 400 (*Bad Request*) antes de impactar en la base de datos, disparando el aviso de error correspondiente en el cliente.
-   
-### 13. Empaquetado e Integración del Widget (Frontend)
-* **Stack Tecnológico:** El widget se desarrolla exclusivamente con Vanilla JavaScript y CSS nativo. Se prohíbe el uso de frameworks pesados (React, Vue, Angular) para eliminar procesos de compilación innecesarios, evitar sobrecargas de red (*bloatware*) y descartar conflictos de dependencias con la arquitectura existente en la web de CEFYE.
-* **Encapsulamiento (Aislamiento Total):** El código fuente se ejecuta confinado dentro de un entorno aislado (mediante el patrón IIFE o implementando Shadow DOM). Esto asegura de forma crítica que ni los estilos CSS ni la lógica de eventos del chatbot "contaminen" o rompan el diseño y los scripts de la página anfitriona.
-* **Despliegue Estático y Minificado:** Todo el ecosistema del frontend —incluyendo la máquina de estados para la gestión flexible de filtros, las llamadas al payload híbrido de Django, el renderizado del DOM y los estilos— se unifica y comprime en un único archivo de despliegue (`chatbot.min.js`).
-* **Integración Cero-Fricción:** Para lanzar el sistema a producción, el proceso se reduce exclusivamente a inyectar una única etiqueta `<script>` asíncrona apuntando a este archivo minificado justo antes del cierre del `</body>` en el sitio web oficial.
+## 2. Personalidad y tono
 
-### 14. Orquestación y Despliegue (Docker Compose / Ollama)
-* **Arquitectura de Contenedores:** El despliegue se estandariza aislando los componentes en cuatro servicios independientes y especializados mediante `docker-compose`:
-  * **`db` (PostgreSQL 15):** Aislado en una red interna virtual. Se prohíbe exponer el puerto 5432 al exterior para anular vectores de ataque. La persistencia de datos comerciales y de la base de conocimiento vectorial se garantiza mediante volúmenes nativos (`pg_data`).
-  * **`ollama` (Motor de IA Local):** Contenedor dedicado exclusivamente a la inferencia del modelo LLM (**Llama 3 Full**). Opera en la red interna privada (puerto 11434 cerrado al exterior). Requiere un volumen montado (`ollama_models`) para cachear los pesos de la red neuronal y evitar descargar gigabytes en cada redespliegue. Obligatorio aplicar *GPU passthrough* (`deploy.resources.reservations.devices`) en el `docker-compose.yml` para delegar el procesamiento a la tarjeta gráfica del host.
-  * **`web` (Django Backend):** Ejecutado bajo un servidor WSGI de grado de producción (Gunicorn con múltiples *workers*), descartando el servidor de desarrollo nativo. Orquesta el pipeline RAG interactuando con `db` y `ollama`. La configuración crítica se inyecta estrictamente mediante variables de entorno (`.env`).
-  * **`nginx` (Proxy Inverso):** Único punto de entrada expuesto a la red pública (80/443). Se encarga de descargar la carga de trabajo del backend sirviendo los recursos estáticos (incluyendo el empaquetado `chatbot.min.js`) y de enrutar de forma segura y cifrada las peticiones HTTPS hacia la API de Django.
+- **Estilo:** Cercano, empático y profesional — el "Asesor de Confianza".
+- **Trato:** Respetuoso, cálido y humano (tuteo, sin emojis). Pensado para inspirar confianza en alumnos que retoman su formación, combinando respaldo institucional con acompañamiento paciente.
 
-### 15. Stack Tecnológico y Dependencias del Entorno (requirements.txt)
-* **Gestión de Paquetes Estricta:** Se prohíbe el despliegue basado en volcados sucios de entorno virtual (`pip freeze`). Las dependencias se limitan exclusivamente a librerías de primer nivel (*Top-Level*), delegando la resolución de la jerarquía transitiva al gestor de paquetes de Docker.
-* **Eliminación de Bloatware:** Se prohíbe la inclusión de librerías de NLP masivas (como SpaCy) al delegar las operaciones vectoriales de texto a los triggers nativos de PostgreSQL. Asimismo, se descartan frameworks de scraping (BeautifulSoup) o herramientas CLI.
-* **Dependencias Base Mínimas Viables (Producción):**
-  * `Django`: Core del sistema (rama 6.x).
-  * `psycopg[c]`: Conector asíncrono y dinámico en C para PostgreSQL.
-  * `gunicorn`: Servidor de concurrencia WSGI.
-  * `django-environ`: Motor de inyección de variables de entorno para cumplir la directriz *12-Factor App*.
-  * `django-cors-headers` y `django-ratelimit`: Capas de control de orígenes y mitigación de abusos.
-  * `ollama`: SDK oficial para el pipeline RAG.
-  
-### 16. Ingestión Automatizada de Datos (Scraping Público y ETL Asíncrono)
-* **Independencia de Fuentes Externas:** Ante la ausencia de una base de datos o API oficial facilitada por CEFYE, el sistema prescinde de accesos internos y delega la recolección de la oferta formativa en un pipeline de extracción desacoplado sobre la web pública.
-* **Worker Periódico (Celery + Scraping):** Tareas automatizadas ejecutadas en horarios de baja concurrencia mediante Celery Beat recorren los portales de CEFYE aplicando límites de velocidad (*throttling*) y control de peticiones para prevenir bloqueos por parte de sistemas perimetrales de seguridad (WAF / Cloudflare).
-* **Tabla de Staging y Normalización:** Los datos brutos extraídos no impactan directamente en producción; se descargan primero en una tabla intermedia (`cefye_staging_cursos`) para validar esquemas, limpiar duplicados y unificar las variables categóricas (`provincia`, `campo_estudio` y `colectivo/destinatarios`).
-* **Actualización Atómica (Upsert) y Recálculo de Índices:** Mediante operaciones de inserción y actualización segura (*upsert*), se vuelcan los registros en la `BaseConocimiento` principal. Este proceso desencadena de forma automatizada el recálculo del vector GIN de búsqueda de texto completo en PostgreSQL, manteniendo el chatbot actualizado de forma aislada y sin comprometer su disponibilidad operativa.
+---
+
+## 3. Fuentes de información e IA local (Ollama)
+
+- **Coste cero en APIs externas:** Se descartan APIs de pago por token. La generación de lenguaje natural la gestiona un modelo de código abierto servido mediante **Ollama**.
+- **Modelo:** Llama 3.2 (cuantizado según los recursos del servidor para minimizar la latencia de respuesta).
+- **Ingesta de datos:** La información oficial se carga desde ficheros estructurados (JSON/CSV) gestionados desde el panel de Django Admin. Esto garantiza control total sobre el contenido y evita roturas por cambios en el diseño web de CEFYE.
+- **Ingesta futura:** La app `operaciones` incorporará un pipeline ETL asíncrono con Celery para automatizar la actualización desde la web pública de CEFYE una vez el núcleo RAG esté validado.
+
+---
+
+## 4. Motor de respuesta — RAG Híbrido con Ollama
+
+El pipeline sigue dos fases estrictas:
+
+1. **Recuperación (Retriever híbrido):**
+   - Pre-filtro categórico opcional sobre `provincia`, `campo_estudio` y `colectivo` para acotar el subconjunto relevante.
+   - Sobre ese subconjunto, PostgreSQL aplica FTS con índice GIN y un umbral de ranking (`rank >= 0.12`) para evitar falsos rechazos en consultas cortas o descripciones extensas.
+
+2. **Generación (Generator):**
+   - El backend empaqueta los fragmentos validados en un contexto estricto y los envía al demonio local de Ollama.
+   - Si el Retriever devuelve cero resultados, la llamada al LLM se aborta y se activa el flujo de fallback.
+
+**Red de seguridad contra alucinaciones:** Ollama no inventa respuestas; trabaja exclusivamente sobre los datos verificados que le llegan. Si ningún fragmento supera el umbral, el sistema deriva al equipo de gestión sin pasar por el modelo.
+
+---
+
+## 5. Frontend — Widget Vanilla JS
+
+- **Ubicación:** Botón flotante fijo en la esquina inferior derecha de la web de CEFYE.
+- **Panel:** Desplegable/colapsable con caja de texto libre y selectores opcionales de `provincia`, `campo_estudio` y `colectivo`. Los filtros no bloquean la caja de texto.
+- **Stack:** Vanilla JS y CSS nativo. Sin frameworks (React, Vue, Angular) para evitar bloat y conflictos con la página anfitriona.
+- **Aislamiento:** IIFE o Shadow DOM para que estilos y eventos no contaminen la página host.
+- **Accesibilidad:** `focus trap`, atributos ARIA y navegación completa por teclado.
+- **Despliegue:** Un único `<script async>` antes del cierre de `</body>` apuntando a `chatbot.min.js`.
+
+---
+
+## 6. Sesiones, historial y captación de leads
+
+- **Sesión efímera:** El UUID de sesión y el estado de los filtros viven en el `sessionStorage` del navegador. Sobreviven a la navegación entre páginas y se destruyen al cerrar la pestaña.
+- **Purga automatizada:** Los mensajes se alojan temporalmente en PostgreSQL. Un cron job borra periódicamente los registros con `ultima_actividad` anterior al umbral configurado, cumpliendo con la minimización de datos del RGPD.
+- **Leads desacoplados:** La tabla `Lead` no tiene FK hacia `Sesion`. Cuando una sesión se purga, el lead no sufre borrado en cascada.
+- **Integridad de leads:** `CheckConstraints` en base de datos rechazan cualquier inserción sin al menos un contacto válido (email o teléfono) o sin `consentimiento_rgpd = True`.
+
+---
+
+## 7. API y seguridad perimetral
+
+| Endpoint | Método | Responsabilidad |
+|---|---|---|
+| `/api/chat/ask/` | POST | Recibe payload híbrido, ejecuta Retriever, llama a Ollama, devuelve respuesta con flags |
+| `/api/chat/lead/` | POST | Valida e inserta datos de contacto del lead |
+
+- **Rate limiting:** `django-ratelimit` por IP sobre ambos endpoints.
+- **CORS:** `django-cors-headers` restringido a los subdominios oficiales de CEFYE. Sin comodines abiertos (`*`).
+
+---
+
+## 8. Esquema de datos para búsqueda
+
+La tabla `BaseConocimiento` separa dos tipos de columnas:
+
+- **Filtros estrictos (B-Tree):** `provincia`, `campo_estudio`, `colectivo`. Descarte mecánico previo a cualquier cálculo de texto.
+- **Texto libre (GIN):** `titulo`, `contenido`. Sobre este subconjunto aplica el FTS.
+
+**Trigger PostgreSQL (`tg_bc_actualizar_vector`):** Recalcula automáticamente el campo `vector_busqueda` en cada `INSERT` y `UPDATE` usando `setweight` con pesos A (`titulo`) y B (`contenido`), con el diccionario `pg_catalog.spanish`.
+
+---
+
+## 9. Ranking híbrido y umbral de corte
+
+- **Pre-filtro categórico:** Opcional y flexible. Permite consultas de ámbito nacional o multi-perfil sin descartar registros de forma ciega.
+- **Ponderación (`setweight`):**
+  - Peso A (1.0) → `titulo`
+  - Peso B (0.4) → `contenido`
+- **Umbral:** `rank >= 0.12`. Calibrado para evitar falsos rechazos en textos cortos o descripciones largas.
+- **Guardián de Ollama:** Si la búsqueda devuelve cero fragmentos válidos, la petición al LLM se aborta y el sistema pasa a estado de fallback.
+
+---
+
+## 10. Telemetría y mejora continua
+
+- **Fallbacks:** Se registran en `ConsultaFallida` (app `operaciones`) las consultas que no superan el Retriever, junto con el texto libre y los filtros aplicados.
+- **Éxitos:** Se incrementan contadores agregados en `ContadorDemanda` vinculados al ID del curso y los filtros. Sin almacenar el texto plano de la consulta (minimización RGPD).
+- **Ciclo de mejora:** El equipo de CEFYE identifica desde Django Admin qué combinaciones geográficas o de colectivos no tienen cobertura, añade la entrada a `BaseConocimiento` y marca el registro de telemetría como `procesado = True`.
+
+---
+
+## 11. Esquema relacional y aislamiento de dominios
+
+| Dominio | Tablas | Tipo |
+|---|---|---|
+| Conocimiento | `BaseConocimiento`, `StagingCursos` | Persistente |
+| Conversación | `Sesion`, `Mensaje` | Volátil (purgable) |
+| Comercial | `Lead` | Persistente |
+| Telemetría | `ConsultaFallida`, `ContadorDemanda` | Persistente |
+
+**Regla clave:** No existen FK entre el dominio volátil y los dominios persistentes. La purga de sesiones no arrastra leads ni telemetría.
+
+---
+
+## 12. Contratos de API
+
+### `POST /api/chat/ask/`
+
+**Request:**
+```json
+{
+  "sesion_uuid": "uuid-v4",
+  "consulta": "texto libre del usuario",
+  "provincia": "Valladolid",
+  "campo_estudio": "Administración",
+  "colectivo": "desempleados"
+}
+```
+> `provincia`, `campo_estudio` y `colectivo` son opcionales. Si no llegan, la búsqueda omite el pre-filtro categórico.
+
+**Response:**
+```json
+{
+  "texto_respuesta": "texto generado por Ollama",
+  "requiere_accion_comercial": false,
+  "fallback_activado": false
+}
+```
+
+### `POST /api/chat/lead/`
+
+**Request:**
+```json
+{
+  "nombre": "string · requerido",
+  "email": "string · requerido si no hay telefono",
+  "telefono": "string · requerido si no hay email",
+  "provincia": "string · requerido",
+  "campo_estudio": "string · requerido",
+  "colectivo": "string · requerido",
+  "consentimiento_rgpd": true,
+  "sesion_uuid": "uuid-v4 · opcional"
+}
+```
+
+**Response éxito:** `{ "ok": true }`
+
+**Response error:** `{ "ok": false, "errores": { "campo": "descripción" } }`
+
+---
+
+## 13. Widget — empaquetado e integración
+
+| Archivo | Contenido |
+|---|---|
+| `chat/static/chatbot.js` | Código fuente sin minificar · Shadow DOM o IIFE · máquina de estados |
+| `chat/static/chatbot.css` | Estilos encapsulados · identidad visual CEFYE |
+| `chat/static/chatbot.min.js` | Salida minificada lista para producción |
+
+Integración en producción:
+```html
+<script async src="https://tudominio.com/static/chatbot.min.js"></script>
+</body>
+```
+
+---
+
+## 14. Despliegue — Docker Compose
+
+Cuatro servicios:
+
+| Servicio | Imagen | Notas |
+|---|---|---|
+| `db` | PostgreSQL 17 | Red interna · puerto 5432 no expuesto al exterior · volumen `pg_data` |
+| `ollama` | ollama/ollama | Red interna · puerto 11434 no expuesto · volumen `ollama_models` para cachear pesos de Llama 3.2 |
+| `web` | Dockerfile local | Django + Gunicorn · orquesta el pipeline RAG |
+| `nginx` | nginx:alpine | Único punto público (80/443) · sirve estáticos y hace proxy a `web` |
+
+---
+
+## 15. Stack tecnológico y dependencias
+
+```
+Django>=6.1,<7.0
+psycopg2-binary
+gunicorn
+django-environ
+django-cors-headers
+django-ratelimit
+ollama
+```
+
+> `django-cors-headers` no está aún en `requirements.txt` — añadirlo antes de implementar el endpoint `ask/`.
+
+**Prohibido:**
+- Librerías NLP pesadas (SpaCy, NLTK) — las operaciones vectoriales las gestiona PostgreSQL.
+- Frameworks de scraping en esta fase — la ingesta es JSON/CSV desde Django Admin.
+- `pip freeze` para generar `requirements.txt` — solo dependencias top-level.
+
+---
+
+## 16. Ingesta de datos
+
+### Fase actual — JSON/CSV manual
+
+La información oficial de CEFYE se carga desde ficheros estructurados mediante un comando de gestión Django:
+
+```bash
+python manage.py cargar_conocimiento --fichero dataset_cefye.json
+```
+
+El comando normaliza las variables categóricas al vocabulario controlado e inserta en `BaseConocimiento`. El trigger de PostgreSQL recalcula el vector GIN automáticamente.
+
+### Fase futura — ETL asíncrono (app `operaciones`)
+
+Una vez validado el núcleo RAG, la app `operaciones` incorporará:
+
+- **Celery Beat:** Tareas programadas en horarios de baja concurrencia.
+- **Tabla de staging (`StagingCursos`):** Buffer intermedio con `hash_contenido` para deduplicación.
+- **Upsert atómico:** Vuelco a `BaseConocimiento` con recálculo automático del índice GIN.
