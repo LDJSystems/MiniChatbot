@@ -1,12 +1,13 @@
+# rag/views.py
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.core.exceptions import ValidationError
 from django_ratelimit.decorators import ratelimit
 import json
 
-from rag.serializers import ChatRequestValidator
-from rag.retriever import HybridRetriever
-from rag.generator import HybridGenerator
+from rag.validators import validar_chat_request
+from rag.retriever import recuperar_cursos
+from rag.generator import generar_respuesta_ia
 
 @ratelimit(key='ip', rate='5/m', block=False)
 @require_POST
@@ -16,18 +17,16 @@ def chat_ask_view(request):
 
     try:
         body = json.loads(request.body)
-        pregunta, filtros = ChatRequestValidator.validar(body)
+        pregunta, filtros = validar_chat_request(body)
         
-        resultados = HybridRetriever.recuperar(pregunta, filtros)
-        resultado_ia = HybridGenerator.generar_respuesta(pregunta, resultados)
+        resultados = recuperar_cursos(pregunta, filtros)
+        resultado_ia = generar_respuesta_ia(pregunta, resultados)
         
-        payload_respuesta = {
+        return JsonResponse({
             "texto_respuesta": resultado_ia["texto_respuesta"],
             "requiere_accion_comercial": resultado_ia["requiere_accion_comercial"],
             "fallback_activado": resultado_ia["fallback_activado"]
-        }
-        
-        return JsonResponse(payload_respuesta, status=200)
+        }, status=200)
 
     except json.JSONDecodeError:
         return JsonResponse({"error": "JSON inválido."}, status=400)

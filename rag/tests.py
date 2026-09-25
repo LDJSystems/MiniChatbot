@@ -5,8 +5,8 @@ import json
 from django.urls import reverse
 from django.core.cache import cache
 from conocimiento.models import BaseConocimiento
-from rag.retriever import HybridRetriever
-from rag.generator import HybridGenerator
+from rag.retriever import recuperar_cursos
+from rag.generator import generar_respuesta_ia
 
 @pytest.fixture(autouse=True)
 def clear_cache():
@@ -23,16 +23,17 @@ def test_retriever_umbral_fallback(mock_rank):
         activo=True
     )
     
-    resultados = HybridRetriever.recuperar("consulta de prueba")
-    assert len(resultados) == 0, "El retriever no debe retornar elementos con rank menor a 0.12"
+    resultados = recuperar_cursos("consulta de prueba")
+    assert len(resultados) == 0, "El retriever no debe retornar elementos con rank menor al umbral"
 
 @pytest.mark.django_db
 def test_generator_fallback_sin_resultados():
-    respuesta = HybridGenerator.generar_respuesta("pregunta", [])
+    respuesta = generar_respuesta_ia("pregunta", [])
     assert respuesta["fallback_activado"] is True
     assert respuesta["requiere_accion_comercial"] is True
     assert "no he encontrado información" in respuesta["texto_respuesta"]
 
+@pytest.mark.django_db
 @patch('rag.generator.requests.post')
 def test_generator_ollama_exitoso(mock_post):
     mock_response = MagicMock()
@@ -45,12 +46,12 @@ def test_generator_ollama_exitoso(mock_post):
         contenido = "Contenido"
         url_oficial = None
 
-    respuesta = HybridGenerator.generar_respuesta("pregunta", [DummyResult()])
+    respuesta = generar_respuesta_ia("pregunta", [DummyResult()])
     assert respuesta["fallback_activado"] is False
     assert respuesta["texto_respuesta"] == "Respuesta generada por Ollama."
 
 @pytest.mark.django_db
-@patch('rag.views.HybridRetriever.recuperar')
+@patch('rag.views.recuperar_cursos')
 @patch('rag.generator.requests.post')
 def test_chat_ask_endpoint(mock_post, mock_recuperar, client):
     mock_response = MagicMock()
@@ -81,11 +82,10 @@ def test_chat_ask_endpoint(mock_post, mock_recuperar, client):
 
 @pytest.mark.django_db
 @patch('rag.generator.requests.post')
-@patch('rag.views.HybridRetriever.recuperar', return_value=[])
+@patch('rag.views.recuperar_cursos', return_value=[])
 def test_chat_ask_rate_limit(mock_recuperar, mock_post, client):
     url = reverse('api_rag_ask')
     
-    # Consumir las 5 peticiones permitidas por minuto
     for _ in range(5):
         client.post(
             url,
@@ -93,7 +93,6 @@ def test_chat_ask_rate_limit(mock_recuperar, mock_post, client):
             content_type='application/json'
         )
 
-    # La 6ª petición debe exceder el límite y retornar 429
     response = client.post(
         url,
         data=json.dumps({"pregunta": "Django"}),

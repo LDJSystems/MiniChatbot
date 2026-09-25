@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'conocimiento',
     'operaciones',
     'rag',
+    'ingestion',
 ]
 
 MIDDLEWARE = [
@@ -119,3 +120,10 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 RATELIMIT_USE_CACHE = 'default'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
+    }
+}
