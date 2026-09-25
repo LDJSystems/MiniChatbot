@@ -30,12 +30,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.postgres',
+    'corsheaders',
     'chat',
     'conocimiento',
     'operaciones',
+    'rag',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -107,3 +110,11 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+# CORS y Rate Limit Configuration
+CORS_ALLOWED_ORIGINS = [
+    "https://cefye.es",
+    "https://www.cefye.es",
+]
+
+RATELIMIT_USE_CACHE = 'default'

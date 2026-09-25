@@ -1,0 +1,16 @@
+from django.contrib import admin
+from .models import BaseConocimiento, StagingCursos
+
+@admin.register(BaseConocimiento)
+class BaseConocimientoAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'provincia', 'campo_estudio', 'colectivo', 'activo', 'fecha_actualizacion')
+    list_filter = ('provincia', 'campo_estudio', 'colectivo', 'activo')
+    search_fields = ('titulo', 'contenido', 'url_oficial')
+    list_editable = ('activo',)
+
+@admin.register(StagingCursos)
+class StagingCursosAdmin(admin.ModelAdmin):
+    list_display = ('titulo_raw', 'provincia_raw', 'estado', 'fecha_extraccion')
+    list_filter = ('estado', 'provincia_raw', 'campo_estudio_raw')
+    search_fields = ('titulo_raw', 'contenido_raw', 'url_origen')
+    list_editable = ('estado',)

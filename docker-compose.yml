@@ -19,6 +19,8 @@ services:
   ollama:
     image: ollama/ollama:0.9.6
     container_name: ollama_service
+    environment:
+      - OLLAMA_KEEP_ALIVE=0
     volumes:
       - ollama_models:/root/.ollama
     ports:
