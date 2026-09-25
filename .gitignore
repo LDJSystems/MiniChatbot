@@ -4,12 +4,13 @@ venv/
 # Variables de entorno
 .env
 
-# Python
+# Python y Pytest
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
+.pytest_cache/
 
 # Django
 *.log
