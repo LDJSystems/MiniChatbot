@@ -113,8 +113,8 @@ MAILERS = {
 
 # CORS y Rate Limit Configuration
 CORS_ALLOWED_ORIGINS = [
-    "https://cefye.es",
-    "https://www.cefye.es",
+    "https://cefye.com",
+    "https://www.cefye.com",
 ]
 
 RATELIMIT_USE_CACHE = 'default'
