@@ -265,3 +265,7 @@ Una vez validado el núcleo RAG, la app `operaciones` incorporará:
 - **Celery Beat:** Tareas programadas en horarios de baja concurrencia.
 - **Tabla de staging (`StagingCursos`):** Buffer intermedio con `hash_contenido` para deduplicación.
 - **Upsert atómico:** Vuelco a `BaseConocimiento` con recálculo automático del índice GIN.
+
+## 17. Documentación técnica y arquitectura (`docs/`)
+
+Para evitar la pérdida de conocimiento técnico y estandarizar el desarrollo, el repositorio incluye una carpeta `docs/` estructurada por módulos y componentes:
