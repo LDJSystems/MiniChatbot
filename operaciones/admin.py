@@ -1,10 +1,23 @@
 # operaciones/admin.py
 from django.contrib import admin
-from .models import Lead, ConsultaFallida, ContadorDemanda
+from .models import Lead, ConsultaFallida, ContadorDemanda, Provincia, Localidad
+
+@admin.register(Provincia)
+class ProvinciaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'codigo')
+    search_fields = ('nombre',)
+
+
+@admin.register(Localidad)
+class LocalidadAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'provincia')
+    list_filter = ('provincia',)
+    search_fields = ('nombre', 'provincia__nombre')
+
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'email', 'telefono', 'provincia', 'campo_estudio', 'colectivo', 'consentimiento_rgpd', 'procesado', 'creado_en')
+    list_display = ('nombre', 'email', 'telefono', 'provincia', 'localidad', 'campo_estudio', 'colectivo', 'consentimiento_rgpd', 'procesado', 'creado_en')
     list_filter = ('provincia', 'campo_estudio', 'colectivo', 'consentimiento_rgpd', 'procesado')
     search_fields = ('nombre', 'email', 'telefono')
     readonly_fields = ('creado_en',)
