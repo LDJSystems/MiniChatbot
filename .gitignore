@@ -1,5 +1,6 @@
 # Entorno virtual
 venv/
+.venv/
 
 # Variables de entorno
 .env
@@ -11,12 +12,19 @@ __pycache__/
 *.pyd
 .Python
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Django
 *.log
 local_settings.py
 db.sqlite3
 media/
+staticfiles/
+
+# Editores
+.vscode/
+.idea/
 
 # Archivos del sistema
 .DS_Store

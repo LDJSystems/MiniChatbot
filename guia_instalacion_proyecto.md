@@ -8,9 +8,15 @@
 
 ---
 
-## ⚠️ Si tienes PostgreSQL 18 instalado
+## ℹ️ Si tienes PostgreSQL 18 instalado
 
-PostgreSQL 18 es una versión beta y puede causar problemas de compatibilidad. Sigue estos pasos antes de continuar:
+PostgreSQL 18 es compatible con este proyecto, pero al ser una versión aún en desarrollo puede presentar comportamientos inesperados. Puedes continuar con él, teniendo en cuenta lo siguiente:
+
+- El puerto por defecto puede ser **5433** en lugar de 5432 — compruébalo y ajusta `DB_PORT` en el `.env` en consecuencia.
+- Selecciona el locale **English, United States** durante la instalación para evitar errores de codificación con `psycopg`.
+- Si encuentras errores que no aparecen en la sección de problemas frecuentes y no ocurren en PostgreSQL 17, lo más probable es que sean incompatibilidades propias de la versión beta.
+
+**Si prefieres evitar estos riesgos**, puedes migrar a PostgreSQL 17 siguiendo estos pasos:
 
 **1. Desinstala PostgreSQL 18**
 - Panel de Control → Programas → Desinstalar `PostgreSQL 18`
@@ -61,9 +67,11 @@ Abre PowerShell y conéctate como superusuario:
 
 Te pedirá la contraseña que pusiste durante la instalación. Una vez dentro ejecuta:
 
+> ⚠️ Sustituye `tu_usuario` y `tu_contraseña` por los valores que quieras. Anótalos: los necesitarás en el paso 4.
+
 ```sql
-CREATE USER lester WITH PASSWORD 'tu_contraseña';
-CREATE DATABASE cefye_db OWNER lester;
+CREATE USER tu_usuario WITH PASSWORD 'tu_contraseña';
+CREATE DATABASE cefye_db OWNER tu_usuario;
 \c cefye_db
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 \q
@@ -79,14 +87,15 @@ Copia el archivo de ejemplo:
 cp .env.example .env
 ```
 
-Edita el `.env` con tus credenciales:
+Edita el `.env` con tus credenciales. Usa el mismo `tu_usuario` y `tu_contraseña` que pusiste en el paso 3:
 
 ```env
+# ⚠️ Este SECRET_KEY es solo para desarrollo local. Nunca lo uses en producción.
 SECRET_KEY=django-insecure-dev-key-local-123456789
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 DB_NAME=cefye_db
-DB_USER=lester
+DB_USER=tu_usuario
 DB_PASSWORD=tu_contraseña
 DB_HOST=127.0.0.1
 DB_PORT=5432
@@ -102,21 +111,38 @@ python manage.py migrate
 
 ---
 
-## 6. Levantar los servicios con Docker
+## 6. Levantar Ollama con Docker
+
+En local, solo necesitas levantar el servicio de Ollama. Django corre fuera del contenedor durante el desarrollo.
 
 ```bash
-docker compose up -d
+docker compose up ollama -d
 ```
+
+> ℹ️ `docker compose up -d` (sin especificar servicio) levanta toda la pila incluyendo nginx y la base de datos en contenedor, lo cual está pensado para producción, no para desarrollo local.
 
 ---
 
-## 7. Arrancar el servidor de desarrollo
+## 7. Crear el superusuario de Django
+
+Necesitas una cuenta de administrador para acceder al panel de Django (`/admin`) y cargar datos en la base de conocimiento:
+
+```bash
+python manage.py createsuperuser
+```
+
+Te pedirá nombre de usuario, email (opcional) y contraseña. Anótalos.
+
+---
+
+## 8. Arrancar el servidor de desarrollo
 
 ```bash
 python manage.py runserver
 ```
 
 La aplicación estará disponible en [http://localhost:8000](http://localhost:8000).
+El panel de administración estará en [http://localhost:8000/admin](http://localhost:8000/admin).
 
 ---
 
@@ -132,7 +158,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
 ### Error de contraseña al conectar
-Verifica que el usuario `lester` existe y que la contraseña en el `.env` coincide con la que pusiste al crearlo en psql.
+Verifica que el usuario que creaste en el paso 3 existe en PostgreSQL y que la contraseña en el `.env` (`DB_USER` y `DB_PASSWORD`) coincide exactamente con la que pusiste al crearlo.
 
 ### Puerto incorrecto
 PostgreSQL 17 usa el puerto **5432** por defecto. Si tenías el 18 instalado antes, puede que tu `.env` tenga `DB_PORT=5433` — cámbialo a `5432`.
