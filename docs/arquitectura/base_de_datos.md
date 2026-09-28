@@ -1,3 +1,5 @@
+### 2. Actualización de `docs/arquitectura/base_de_datos.md`
+
 # Arquitectura y Optimización de Base de Datos - MiniChatbot
 
 ## 1. Stack Tecnológico
@@ -17,10 +19,12 @@ Almacena los datos brutos extraídos antes de ser procesados por el pipeline ETL
 | `titulo_raw` | `CharField` | `VARCHAR(255)` | Texto sin procesar |
 | `contenido_raw` | `TextField` | `TEXT` | Descripción cruda |
 | `provincia_raw` | `CharField` | `VARCHAR(100)` | Nullable / Opcional |
-| `campo_estudio_raw`| `CharField` | `VARCHAR(150)` | Nullable / Opcional |
+| `campo_estudio_raw`| `CharField` | `VARCHAR(100)` | Nullable / Opcional |
 | `colectivo_raw` | `CharField` | `VARCHAR(100)` | Nullable / Opcional |
 | `url_origen` | `URLField` | `VARCHAR(200)` | Referencia de origen |
-| `estado` | `CharField` | `VARCHAR(20)` | Estados: `pendiente`, `procesado`, `error` |
+| `hash_contenido` | `CharField` | `VARCHAR(64)` | Índice único de control de duplicados (SHA-256) |
+| `estado` | `CharField` | `VARCHAR(30)` | Estados: `pendiente`, `validado`, `rechazado` |
+| `extraido_en` | `DateTimeField` | `TIMESTAMP` | Fecha de registro en staging |
 
 ### Tabla: `BaseConocimiento` (Zona Oficial / RAG)
 Almacena los registros limpios y validados consumidos por el motor de búsqueda y recuperación.
@@ -28,28 +32,30 @@ Almacena los registros limpios y validados consumidos por el motor de búsqueda 
 | Columna | Tipo Django | Tipo SQL | Restricciones / Notas |
 | :--- | :--- | :--- | :--- |
 | `id` | `BigAutoField` | `BIGSERIAL` | Primary Key |
-| `titulo` | `CharField` | `VARCHAR(255)` | Indexado |
+| `titulo` | `CharField` | `VARCHAR(255)` | Indexado (Clave de Upsert) |
 | `contenido` | `TextField` | `TEXT` | Datos normalizados |
 | `provincia` | `CharField` | `VARCHAR(100)` | - |
-| `campo_estudio` | `CharField` | `VARCHAR(150)` | - |
+| `campo_estudio` | `CharField` | `VARCHAR(100)` | - |
 | `colectivo` | `CharField` | `VARCHAR(100)` | - |
-| `url_oficial` | `URLField` | `VARCHAR(200)` | Único (`unique=True`) |
+| `url_oficial` | `URLField` | `VARCHAR(200)` | Enlace oficial del recurso |
 | `activo` | `BooleanField` | `BOOLEAN` | Control de visibilidad |
+| `vector_busqueda` | `SearchVector` | `TSVECTOR` | Índice GIN para Full-Text Search |
+| `actualizado_en` | `DateTimeField` | `TIMESTAMP` | Marca de tiempo de sincronización |
+
+### Tablas de Operaciones y Telemetría (`operaciones`)
+* **`Lead`**: Captura de contactos con restricciones estrictas de base de datos (`CheckConstraint`) para validar la presencia de al menos un canal de contacto (email o teléfono), consentimiento RGPD obligatorio y completitud de contexto geográfico/temático.
+* **`ConsultaFallida`**: Registro analítico de consultas que no obtuvieron respuesta satisfactoria en el motor RAG, estructurado con un índice optimizado sobre el campo `procesado`.
+* **`ContadorDemanda`**: Conteo agregado de la demanda de cursos indexado por ID de conocimiento, provincia, campo de estudio y colectivo.
 
 ---
 
-## 3. Optimizaciones de Búsqueda y Rendimiento
-
-### Búsqueda de Texto Completo (Full-Text Search) con Índices GIN
-Para evitar latencias elevadas en el motor RAG al buscar coincidencias semánticas o de palabras clave en grandes volúmenes de texto:
-1. **Vector de Búsqueda (`tsvector`):** Columna gestionada a nivel de motor de base de datos que indexa los campos clave (`titulo` y `contenido`).
-2. **Índice GIN (Generalized Inverted Index):** Permite consultas de texto extremadamente rápidas en PostgreSQL sin recorrer la tabla secuencialmente (`Seq Scan`).
-
-### Triggers Nativos en PostgreSQL
-La sincronización del vector de búsqueda (`tsvector`) no recae sobre la capa de aplicación (Django ORM), evitando sobrecarga de procesamiento en los hilos de Python. Se ejecuta mediante un **Trigger a nivel de SQL** que actualiza automáticamente el vector de búsqueda cada vez que se inserta o modifica un registro en `BaseConocimiento`.
+## 3. Gobernanza y Panel de Administración (Django Admin)
+Para garantizar la integridad operativa y analítica de los datos:
+* **Modelos de Telemetría (`ConsultaFallida`, `ContadorDemanda`, `Lead`):** Configurados con permisos de solo lectura (`has_add_permission` restringido y campos protegidos) para evitar alteraciones manuales accidentales de las métricas.
+* **Acciones Personalizadas:** Se implementaron acciones en lote (*Admin Actions*) en el administrador de `StagingCursos` y `BaseConocimiento` para la activación/inactivación y procesamiento manual directo desde la interfaz web.
 
 ---
 
-## 4. Persistencia y Control de Concurrencia
-* **Volumen Docker (`pg_data`):** Garantiza que los datos transaccionales persistan ante reinicios o actualizaciones de los contenedores de la base de datos.
-* **Tabla de Caché (`django_cache_table`):** Gestiona los bloqueos y contadores distribuidos para prevenir condiciones de carrera en el límite de peticiones por minuto (`django-ratelimit`).
+## 4. Optimizaciones de Búsqueda y Rendimiento
+* **Búsqueda de Texto Completo (Full-Text Search) con Índices GIN:** Para evitar latencias elevadas en el motor RAG al buscar coincidencias en grandes volúmenes de texto.
+* **Persistencia Docker (`pg_data`):** Garantiza que los datos transaccionales persistan ante reinicios o actualizaciones de los contenedores de la base de datos.

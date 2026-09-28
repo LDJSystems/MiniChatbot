@@ -59,7 +59,17 @@ services:
       - db
     networks:
       - internal
-    # El puerto 8000 ya no se expone al host; el tráfico pasa exclusivamente por Nginx
+
+  session-purger:
+    build: .
+    command: >
+      sh -c "while true; do python manage.py purgar_sesiones_inactivas; sleep 86400; done"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    networks:
+      - internal
 
   nginx:
     image: nginx:alpine

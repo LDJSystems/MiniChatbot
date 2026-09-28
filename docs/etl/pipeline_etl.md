@@ -3,7 +3,7 @@
 ## 1. Propósito y Arquitectura
 El pipeline ETL (Extract, Transform, Load) es el subsistema encargado de procesar los registros de cursos brutos recopilados en la zona de ensayo (`StagingCursos`) y promoverlos de forma limpia, estructurada y validada hacia la base de conocimiento oficial (`BaseConocimiento`) utilizada por el motor RAG.
 
-* **Principio de Responsabilidad Única (SRP):** Está implementado de forma exclusiva como un comando de gestión de la CLI de Django (`procesar_staging`). Carece de vistas, serializadores o rutas HTTP, operando estrictamente como una tarea de procesamiento por lotes (*batch processing*).
+* **Principio de Responsabilidad Única (SRP):** Está implementado como un comando de gestión de la CLI de Django (`ejecutar_etl`). Orquesta la captura, el filtrado por huella digital (*hash*), y el volcado transaccional a producción.
 
 ---
 
@@ -13,18 +13,16 @@ Cada registro almacenado en `StagingCursos` transita por los siguientes estados 
 | Estado | Descripción |
 | :--- | :--- |
 | `pendiente` | Estado inicial del registro al ser ingresado en staging. Espera a ser procesado por el ETL. |
-| `procesado` | El registro fue migrado y actualizado exitosamente en la `BaseConocimiento`. |
-| `error` | Ocurrió una excepción durante la transformación o carga. El registro es aislado para revisión. |
+| `validado` | El registro fue migrado, normalizado y actualizado exitosamente en la `BaseConocimiento`. |
+| `rechazado` | Ocurrió una excepción a nivel de base de datos durante el upsert atómico. El registro es aislado para revisión. |
 
 ---
 
 ## 3. Control de Duplicados e Idempotencia
-Para evitar registros redundantes en la base de conocimiento del chatbot, el pipeline utiliza una estrategia de *upsert* basada en el método `update_or_create` de Django ORM:
+Para evitar registros redundantes y asegurar la unicidad en el buffer de staging, el pipeline implementa una doble estrategia de control:
 
-* **Clave de Unicidad:** La coincidencia se evalúa mediante la `url_oficial` (o URL de origen).
-* **Comportamiento:**
-  * Si la URL ya existe en `BaseConocimiento`, el registro se **actualiza** con los últimos datos normalizados provenientes de staging.
-  * Si la URL no existe, se **crea** un nuevo registro activo.
+* **Control de Huella Digital (Hash SHA-256):** A nivel de `StagingCursos`, se calcula un hash único (`hash_contenido`) combinando el título y el contenido bruto para impedir duplicados físicos mediante restricciones de unicidad (`get_or_create`).
+* **Upsert en Producción:** La promoción a `BaseConocimiento` utiliza el método `update_or_create` de Django ORM tomando como clave el `titulo` del curso, actualizando dinámicamente los campos asociados (`contenido`, `provincia`, `campo_estudio`, `colectivo`, `url_oficial`).
 
 ---
 
@@ -34,19 +32,4 @@ Para evitar registros redundantes en la base de conocimiento del chatbot, el pip
 Para procesar los registros pendientes bajo demanda desde la terminal:
 
 ```powershell
-python manage.py procesar_staging
-```
-
-### Ejecución en Producción (Docker)
-Dado que el contenedor de la aplicación corre dentro de un entorno aislado con Gunicorn, la ejecución se realiza invocando el comando directamente en el contenedor web activo:
-
-```bash
-docker compose exec web python manage.py procesar_staging
-```
-
-### Automatización Sugerida (Producción)
-Para mantener la base de conocimiento sincronizada de forma autónoma, se recomienda programar la ejecución periódica del comando mediante un trabajo automatizado (`cron` en el sistema host o un contenedor dedicado de tareas programadas):
-
-```bash
-0 */4 * * * cd /ruta/al/proyecto && docker compose exec -T web python manage.py procesar_staging >> /var/log/etl_cursos.log 2>&1
-```
+python manage.py ejecutar_etl

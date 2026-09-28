@@ -129,3 +129,6 @@ CACHES = {
         'LOCATION': 'django_cache_table',
     }
 }
+
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'

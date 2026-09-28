@@ -1,10 +1,10 @@
-# rag/tests.py
 import pytest
 from unittest.mock import patch, MagicMock
 import json
 from django.urls import reverse
 from django.core.cache import cache
 from conocimiento.models import BaseConocimiento
+from operaciones.models import ConsultaFallida, ContadorDemanda
 from rag.retriever import recuperar_cursos
 from rag.generator import generar_respuesta_ia
 
@@ -99,3 +99,60 @@ def test_chat_ask_rate_limit(mock_recuperar, mock_post, client):
         content_type='application/json'
     )
     assert response.status_code == 429
+
+@pytest.mark.django_db
+@patch('rag.generator.requests.post')
+@patch('rag.views.recuperar_cursos', return_value=[])
+def test_rag_registra_consulta_fallida(mock_recuperar, mock_post, client):
+    url = reverse('api_rag_ask')
+    payload = {
+        "pregunta": "curso inexistente xyz",
+        "filtros": {"provincia": "Madrid"}
+    }
+    response = client.post(
+        url,
+        data=json.dumps(payload),
+        content_type='application/json'
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["fallback_activado"] is True
+    assert ConsultaFallida.objects.filter(consulta="curso inexistente xyz").exists()
+
+@pytest.mark.django_db
+@patch('rag.generator.requests.post')
+def test_rag_incrementa_contador_demanda(mock_post, client):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"response": "Respuesta simulada del LLM."}
+    mock_post.return_value = mock_response
+
+    curso = BaseConocimiento.objects.create(
+        titulo="Python Avanzado",
+        contenido="Curso completo de Django y optimización.",
+        provincia="Madrid",
+        campo_estudio="Tecnología",
+        colectivo="General",
+        url_oficial="https://cefye.es/curso-python",
+        activo=True
+    )
+
+    url = reverse('api_rag_ask')
+    payload = {
+        "pregunta": "Python",
+        "filtros": {"provincia": "Madrid"}
+    }
+    response = client.post(
+        url,
+        data=json.dumps(payload),
+        content_type='application/json'
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["fallback_activado"] is False
+    
+    contador = ContadorDemanda.objects.filter(curso=curso).first()
+    assert contador is not None
+    assert contador.demanda >= 1
