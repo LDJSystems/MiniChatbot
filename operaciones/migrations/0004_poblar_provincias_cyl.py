@@ -23,7 +23,7 @@ def revertir_provincias(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('operaciones', '0001_initial'), # Ajusta según tu última migración
+        ('operaciones', '0003_provincia_localidad'),
     ]
 
     operations = [

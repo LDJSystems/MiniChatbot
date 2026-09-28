@@ -8,7 +8,6 @@ class LeadSerializer(serializers.ModelSerializer):
 
     def validate_provincia(self, value):
         provincia_limpia = value.strip()
-        # Valida contra la base de datos normalizada de Castilla y León
         if not Provincia.objects.filter(nombre__iexact=provincia_limpia).exists():
             raise serializers.ValidationError("La provincia indicada no pertenece a Castilla y León.")
         return provincia_limpia
