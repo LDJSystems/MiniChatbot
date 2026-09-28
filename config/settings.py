@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'rag',
     'ingestion',
     "leads",
+    'telemetry',
     "rest_framework",
 ]
 
