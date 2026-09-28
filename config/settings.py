@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'operaciones',
     'rag',
     'ingestion',
+    "leads",
+    "rest_framework",
 ]
 
 MIDDLEWARE = [
