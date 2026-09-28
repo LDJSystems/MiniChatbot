@@ -269,3 +269,5 @@ Una vez validado el núcleo RAG, la app `operaciones` incorporará:
 ## 17. Documentación técnica y arquitectura (`docs/`)
 
 Para evitar la pérdida de conocimiento técnico y estandarizar el desarrollo, el repositorio incluye una carpeta `docs/` estructurada por módulos y componentes:
+
+> **Regla operativa:** Toda modificación estructural, cambio de esquema o ajuste en el pipeline ETL debe reflejarse simultáneamente en su correspondiente documento dentro de `docs/`.
