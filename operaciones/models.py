@@ -6,6 +6,7 @@ class Lead(models.Model):
     email = models.EmailField(max_length=254, blank=True, null=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
     provincia = models.CharField(max_length=100)
+    localidad = models.CharField(max_length=150, blank=True, null=True)
     campo_estudio = models.CharField(max_length=100)
     colectivo = models.CharField(max_length=100)
     consentimiento_rgpd = models.BooleanField()

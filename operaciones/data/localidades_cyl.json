@@ -1,0 +1,79 @@
+{
+  "Ávila": [
+    "Ávila",
+    "Arenas de San Pedro",
+    "Arévalo",
+    "Candeleda",
+    "El Barco de Ávila",
+    "Las Navas del Marqués"
+  ],
+  "Burgos": [
+    "Burgos",
+    "Miranda de Ebro",
+    "Aranda de Duero",
+    "Briviesca",
+    "Medina de Pomar",
+    "Villarcayo de Merindad de Castilla La Vieja"
+  ],
+  "León": [
+    "León",
+    "Ponferrada",
+    "San Andrés del Rabanedo",
+    "Villaquilambre",
+    "Astorga",
+    "La Bañeza",
+    "Bembibre",
+    "Valencia de Don Juan"
+  ],
+  "Palencia": [
+    "Palencia",
+    "Aguilar de Campoo",
+    "Guardo",
+    "Venta de Baños",
+    "Villamuriel de Cerrato",
+    "Herrera de Pisuerga"
+  ],
+  "Salamanca": [
+    "Salamanca",
+    "Béjar",
+    "Ciudad Rodrigo",
+    "Santa Marta de Tormes",
+    "Carbajosa de la Sagrada",
+    "Peñaranda de Bracamonte",
+    "Guijuelo"
+  ],
+  "Segovia": [
+    "Segovia",
+    "Cuéllar",
+    "El Espinar",
+    "Real Sitio de San Ildefonso",
+    "Palazuelos de Eresma",
+    "Nava de la Asunción"
+  ],
+  "Soria": [
+    "Soria",
+    "Almazán",
+    "El Burgo de Osma-Ciudad de Osma",
+    "Golmayo",
+    "San Esteban de Gormaz",
+    "Ágreda"
+  ],
+  "Valladolid": [
+    "Valladolid",
+    "Laguna de Duero",
+    "Medina del Campo",
+    "Arroyo de la Encomienda",
+    "Tordesillas",
+    "Cistérniga",
+    "Zaratán",
+    "Simancas"
+  ],
+  "Zamora": [
+    "Zamora",
+    "Benavente",
+    "Toro",
+    "Morales del Vino",
+    "Puebla de Sanabria",
+    "Villaralbo"
+  ]
+}
