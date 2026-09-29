@@ -1,0 +1,21 @@
+<h1>Tendencias de demanda</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Base conocimiento ID</th>
+            <th>Demanda</th>
+            <th>Última actualización</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for item in tendencias %}
+        <tr>
+            <td>{{ item.base_conocimiento_id }}</td>
+            <td>{{ item.demanda }}</td>
+            <td>{{ item.actualizado_en }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

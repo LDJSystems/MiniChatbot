@@ -18,7 +18,7 @@ class ConsultaFallida(models.Model):
 
 
 class ContadorDemanda(models.Model):
-    base_conocimiento_id = models.IntegerField()
+    base_conocimiento_id = models.PositiveIntegerField()
 
     demanda = models.PositiveIntegerField(default=0)
 
@@ -32,6 +32,10 @@ class ContadorDemanda(models.Model):
             models.Index(
                 fields=["-demanda"],
                 name="telemetry_demanda_idx",
+            ),
+            models.Index(
+                fields=["base_conocimiento_id"],
+                name="telemetry_bc_id_idx",
             ),
         ]
 
