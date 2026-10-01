@@ -1,7 +1,7 @@
 from django.db import models
 
 class ConsultaFallida(models.Model):
-    texto_consulta = models.TextField()
+    texto_consulta = models.TextField(default='') 
     motivo_fallo = models.CharField(max_length=50) # 'sin_resultados', 'timeout', 'error_llm'
     procesado = models.BooleanField(default=False)
     creado_en = models.DateTimeField(auto_now_add=True)
