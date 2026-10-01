@@ -1,7 +1,8 @@
-# conocimiento/admin.py
 from django.contrib import admin
-from django.db import transaction
+from django.contrib import messages
 from .models import BaseConocimiento, StagingCursos
+from .services import promover_staging
+
 
 @admin.register(BaseConocimiento)
 class BaseConocimientoAdmin(admin.ModelAdmin):
@@ -38,22 +39,12 @@ class StagingCursosAdmin(admin.ModelAdmin):
 
     @admin.action(description="Procesar y pasar a producción los registros seleccionados")
     def procesar_staging_seleccionados(self, request, queryset):
-        procesados = 0
-        for item in queryset.filter(estado='pendiente'):
-            with transaction.atomic():
-                BaseConocimiento.objects.update_or_create(
-                    titulo=item.titulo_raw,
-                    defaults={
-                        'contenido': item.contenido_raw or '',
-                        'provincia': item.provincia_raw or '',
-                        'campo_estudio': item.campo_estudio_raw or '',
-                        'colectivo': item.colectivo_raw or '',
-                        'url_oficial': item.url_origen or '',
-                        'activo': True
-                    }
-                )
-                item.estado = 'validado'
-                item.save()
-                procesados += 1
-        
-        self.message_user(request, f"Se procesaron y sincronizaron {procesados} registros a BaseConocimiento.")
+        resultado = promover_staging(queryset=queryset)
+
+        level = messages.SUCCESS if not resultado['errores'] else messages.WARNING
+        self.message_user(
+            request,
+            f"Procesados: {resultado['procesados']}. Errores: {resultado['errores']}."
+            + (f" IDs con error: {resultado['ids_error']}" if resultado['errores'] else ""),
+            level=level,
+        )

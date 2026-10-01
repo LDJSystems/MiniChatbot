@@ -1,36 +1,20 @@
-# conocimiento/management/commands/procesar_staging.py
 from django.core.management.base import BaseCommand
-from django.db import transaction
-from conocimiento.models import StagingCursos, BaseConocimiento
+from conocimiento.services import promover_staging
+
 
 class Command(BaseCommand):
-    help = 'Procesa los cursos pendientes de la tabla staging y los consolida en la base de conocimiento.'
+    help = 'Procesa los cursos pendientes de staging y los consolida en BaseConocimiento.'
 
     def handle(self, *args, **options):
-        pendientes = StagingCursos.objects.filter(estado='pendiente')
-        procesados = 0
+        resultado = promover_staging()
 
-        for curso in pendientes:
-            try:
-                with transaction.atomic():
-                    BaseConocimiento.objects.update_or_create(
-                        url_oficial=curso.url_origen,
-                        defaults={
-                            'titulo': curso.titulo_raw,
-                            'contenido': curso.contenido_raw or '',
-                            'provincia': curso.provincia_raw or 'N/D',
-                            'localidad': curso.localidad or '',
-                            'campo_estudio': curso.campo_estudio_raw or 'N/D',
-                            'colectivo': curso.colectivo_raw or 'N/D',
-                            'activo': True,
-                        }
-                    )
-                    curso.estado = 'procesado'
-                    curso.save(update_fields=['estado'])
-                    procesados += 1
-            except Exception as e:
-                curso.estado = 'error'
-                curso.save(update_fields=['estado'])
-                self.stdout.write(self.style.ERROR(f"Error procesando curso ID {curso.id}: {e}"))
-
-        self.stdout.write(self.style.SUCCESS(f"Proceso finalizado. Total procesados: {procesados}"))
+        if resultado['errores']:
+            self.stdout.write(
+                self.style.WARNING(f"IDs con error: {resultado['ids_error']}")
+            )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Finalizado. Procesados: {resultado['procesados']}, "
+                f"Errores: {resultado['errores']}"
+            )
+        )

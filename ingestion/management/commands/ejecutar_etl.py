@@ -1,3 +1,4 @@
+# conocimiento/management/commands/ejecutar_etl.py
 import re
 import hashlib
 import logging
@@ -7,7 +8,8 @@ from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from django.core.management.base import BaseCommand
 from django.db import DatabaseError, transaction
-from conocimiento.models import BaseConocimiento, StagingCursos
+from conocimiento.models import StagingCursos, BaseConocimiento
+from conocimiento.services import promover_staging
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +31,6 @@ MAPA_LOCALIDADES_CYL = {
     "León": [
         LOCALIDAD_CAPITAL_LEON, "Ponferrada", "San Andrés del Rabanedo", "Villaquilambre",
         "Astorga", "La Bañeza", "Bembibre", "Valencia de Don Juan",
-        # Ampliación: más municipios de la provincia para que no caigan en
-        # "León (provincia)" por no estar en la lista. Añade los que necesites.
         "Villablino", "Sahagún", "Cacabelos", "Villafranca del Bierzo",
         "La Robla", "Cistierna", "Camponaraya", "Fabero", "Santa María del Páramo",
     ],
@@ -245,6 +245,7 @@ def _normalizar_url(url: str) -> str:
     """Normaliza URLs garantizando barra final, para evitar duplicados."""
     return url.rstrip('/') + '/'
 
+
 # --- Comando Django -------------------------------------------------------
 
 class Command(BaseCommand):
@@ -286,7 +287,7 @@ class Command(BaseCommand):
 
         # --- Fase 2: scraping de cada curso ---
         descartados = 0
-        urls_404: set[str] = set()   # URLs que han devuelto 404 en esta ejecución
+        urls_404: set[str] = set()
 
         for url_curso in enlaces_cursos:
             try:
@@ -359,54 +360,50 @@ class Command(BaseCommand):
             f"URLs con 404: {len(urls_404)}"
         )
 
-        # --- Fase 3: carga en BD ---
-        creados = 0
-        actualizados = 0
-        errores = 0
+        # --- Fase 3: carga en staging ---
+        staging_ids = []
+        errores_staging = 0
 
         for item in datos_crudos:
             try:
-                # FIX #1: hash basado en URL + título (estables), no en contenido enriquecido
                 hash_input = f"{item['url']}|{item['titulo']}"
                 hash_val = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
 
-                # FIX #6: StagingCursos y BaseConocimiento en una sola transacción atómica
                 with transaction.atomic():
-                    StagingCursos.objects.update_or_create(
+                    obj, _ = StagingCursos.objects.update_or_create(
                         hash_contenido=hash_val,
                         defaults={
-                            'titulo_raw': item['titulo'],
-                            'contenido_raw': item['contenido'],
-                            'provincia_raw': item['provincia'],
-                            'localidad': item['localidad'],
+                            'titulo_raw':        item['titulo'],
+                            'contenido_raw':     item['contenido'],
+                            'provincia_raw':     item['provincia'],
+                            'localidad':         item['localidad'],
                             'campo_estudio_raw': item['campo_estudio'],
-                            'colectivo_raw': item['colectivo'],
-                            'url_origen': item['url'],
-                            'estado': 'procesado'
+                            'colectivo_raw':     item['colectivo'],
+                            'url_origen':        item['url'],
+                            'estado':            'pendiente',
                         }
                     )
-
-                    _, created = BaseConocimiento.objects.update_or_create(
-                        url_oficial=item['url'],
-                        defaults={
-                            'titulo': item['titulo'],
-                            'contenido': item['contenido'],
-                            'provincia': item['provincia'],
-                            'localidad': item['localidad'],
-                            'campo_estudio': item['campo_estudio'],
-                            'colectivo': item['colectivo'],
-                            'activo': True
-                        }
-                    )
-
-                if created:
-                    creados += 1
-                else:
-                    actualizados += 1
+                    staging_ids.append(obj.pk)
 
             except DatabaseError as e:
-                logger.error(f"Error de BD guardando {item.get('url')}: {e}")
-                errores += 1
+                logger.error(f"Error de BD guardando staging {item.get('url')}: {e}")
+                errores_staging += 1
+
+        self.stdout.write(
+            f"  Staging: {len(staging_ids)} registros listos, "
+            f"{errores_staging} errores."
+        )
+
+        # --- Fase 3b: promover staging → BaseConocimiento ---
+        qs_a_promover = StagingCursos.objects.filter(pk__in=staging_ids, estado='pendiente')
+        resultado = promover_staging(queryset=qs_a_promover)
+
+        if resultado['errores']:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  Errores en promoción: {resultado['ids_error']}"
+                )
+            )
 
         # --- Fase 4a: desactivar cursos que devolvieron 404 en esta ejecución ---
         desactivados_404 = 0
@@ -422,6 +419,7 @@ class Command(BaseCommand):
                         + ", ".join(urls_404)
                     )
                 )
+
         # --- Fase 4b: desactivar cursos que ya no aparecen en la web ---
         # FIX #5: solo desactivamos si el scraping ha obtenido un mínimo razonable
         # de cursos; si hay menos, asumimos fallo parcial y no tocamos nada.
@@ -438,8 +436,8 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(self.style.SUCCESS(
-            f"ETL completado: {creados} creados, {actualizados} actualizados, "
+            f"ETL completado: {resultado['procesados']} promovidos a producción, "
             f"{desactivados + desactivados_404} desactivados "
             f"({desactivados_404} por 404, {desactivados} por ausencia), "
-            f"{errores} errores."
+            f"{errores_staging + resultado['errores']} errores totales."
         ))
