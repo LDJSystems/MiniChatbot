@@ -1,3 +1,4 @@
+# conocimiento/management/commands/cargar_datos_iniciales.py
 import json
 import csv
 from django.core.management.base import BaseCommand
@@ -31,6 +32,7 @@ class Command(BaseCommand):
                         'titulo_raw': item.get('titulo'),
                         'contenido_raw': item.get('contenido'),
                         'provincia_raw': item.get('provincia'),
+                        'localidad': item.get('localidad', ''),
                         'campo_estudio_raw': item.get('campo_estudio'),
                         'colectivo_raw': item.get('colectivo'),
                         'url_origen': item.get('url'),
@@ -52,6 +54,7 @@ class Command(BaseCommand):
                         'titulo_raw': row.get('titulo'),
                         'contenido_raw': row.get('contenido'),
                         'provincia_raw': row.get('provincia'),
+                        'localidad': row.get('localidad', ''),
                         'campo_estudio_raw': row.get('campo_estudio'),
                         'colectivo_raw': row.get('colectivo'),
                         'url_origen': row.get('url'),

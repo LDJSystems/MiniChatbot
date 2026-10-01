@@ -6,6 +6,7 @@ class BaseConocimiento(models.Model):
     titulo = models.CharField(max_length=255)
     contenido = models.TextField()
     provincia = models.CharField(max_length=100)
+    localidad = models.CharField(max_length=100, blank=True, db_index=True)
     campo_estudio = models.CharField(max_length=100)
     colectivo = models.CharField(max_length=100)
     url_oficial = models.TextField(blank=True, null=True)
@@ -18,6 +19,7 @@ class BaseConocimiento(models.Model):
         db_table = 'base_conocimiento'
         indexes = [
             models.Index(fields=['provincia'], name='idx_bc_provincia'),
+            models.Index(fields=['localidad'], name='idx_bc_localidad'),
             models.Index(fields=['campo_estudio'], name='idx_bc_campo'),
             models.Index(fields=['colectivo'], name='idx_bc_colectivo'),
             GinIndex(fields=['vector_busqueda'], name='idx_bc_fts_gin'),
@@ -27,6 +29,7 @@ class StagingCursos(models.Model):
     titulo_raw = models.TextField()
     contenido_raw = models.TextField(blank=True, null=True)
     provincia_raw = models.TextField(blank=True, null=True)
+    localidad = models.CharField(max_length=100, blank=True, db_index=True)
     campo_estudio_raw = models.TextField(blank=True, null=True)
     colectivo_raw = models.TextField(blank=True, null=True)
     url_origen = models.TextField(blank=True, null=True)

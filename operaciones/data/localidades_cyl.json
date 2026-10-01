@@ -1,6 +1,7 @@
 {
   "Ávila": [
     "Ávila",
+    "Ávila Capital",
     "Arenas de San Pedro",
     "Arévalo",
     "Candeleda",
@@ -9,6 +10,7 @@
   ],
   "Burgos": [
     "Burgos",
+    "Burgos Capital",
     "Miranda de Ebro",
     "Aranda de Duero",
     "Briviesca",
@@ -17,6 +19,7 @@
   ],
   "León": [
     "León",
+    "León Capital",
     "Ponferrada",
     "San Andrés del Rabanedo",
     "Villaquilambre",
@@ -27,6 +30,7 @@
   ],
   "Palencia": [
     "Palencia",
+    "Palencia Capital",
     "Aguilar de Campoo",
     "Guardo",
     "Venta de Baños",
@@ -35,6 +39,7 @@
   ],
   "Salamanca": [
     "Salamanca",
+    "Salamanca Capital",
     "Béjar",
     "Ciudad Rodrigo",
     "Santa Marta de Tormes",
@@ -44,6 +49,7 @@
   ],
   "Segovia": [
     "Segovia",
+    "Segovia Capital",
     "Cuéllar",
     "El Espinar",
     "Real Sitio de San Ildefonso",
@@ -52,6 +58,7 @@
   ],
   "Soria": [
     "Soria",
+    "Soria Capital",
     "Almazán",
     "El Burgo de Osma-Ciudad de Osma",
     "Golmayo",
@@ -60,6 +67,7 @@
   ],
   "Valladolid": [
     "Valladolid",
+    "Valladolid Capital",
     "Laguna de Duero",
     "Medina del Campo",
     "Arroyo de la Encomienda",
@@ -70,6 +78,7 @@
   ],
   "Zamora": [
     "Zamora",
+    "Zamora Capital",
     "Benavente",
     "Toro",
     "Morales del Vino",

@@ -1,11 +1,18 @@
-# conocimiento/services.py
+import re
+import operator
+from functools import reduce
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from conocimiento.models import BaseConocimiento
 
 class ChatbotKnowledgeService:
     @staticmethod
     def recuperar_contexto(pregunta: str, limite: int = 3) -> str:
-        query = SearchQuery(pregunta, config='spanish')
+        terminos = [w for w in re.findall(r'\w+', pregunta) if len(w) > 2]
+        
+        if not terminos:
+            return "No se encontró información relevante en la base de conocimiento."
+            
+        query = reduce(operator.or_, [SearchQuery(t, config='spanish') for t in terminos])
         
         resultados = BaseConocimiento.objects.filter(
             vector_busqueda=query,

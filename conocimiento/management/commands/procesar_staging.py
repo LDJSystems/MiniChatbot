@@ -1,3 +1,4 @@
+# conocimiento/management/commands/procesar_staging.py
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from conocimiento.models import StagingCursos, BaseConocimiento
@@ -12,13 +13,13 @@ class Command(BaseCommand):
         for curso in pendientes:
             try:
                 with transaction.atomic():
-                    # Evitar duplicados basados en contenido o URL si aplica, usando update_or_create
                     BaseConocimiento.objects.update_or_create(
                         url_oficial=curso.url_origen,
                         defaults={
                             'titulo': curso.titulo_raw,
                             'contenido': curso.contenido_raw or '',
                             'provincia': curso.provincia_raw or 'N/D',
+                            'localidad': curso.localidad or '',
                             'campo_estudio': curso.campo_estudio_raw or 'N/D',
                             'colectivo': curso.colectivo_raw or 'N/D',
                             'activo': True,
