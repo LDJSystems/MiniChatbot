@@ -79,7 +79,7 @@ DATABASES = {
         'NAME': env('DB_NAME'),
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
-        'HOST': env('DB_HOST'),
+        'HOST': env('DB_HOST', default='db'),
         'PORT': env('DB_PORT'),
     }
 }
@@ -117,10 +117,16 @@ MAILERS = {
 }
 
 # CORS y Rate Limit Configuration
-CORS_ALLOWED_ORIGINS = [
-    "https://cefye.com",
-    "https://www.cefye.com",
-]
+# CORS y CSRF Configuration dinámicos desde el .env
+CORS_ALLOWED_ORIGINS = env.list(
+    'CORS_ALLOWED_ORIGINS', 
+    default=["https://cefye.com", "https://www.cefye.com"]
+)
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    'CSRF_TRUSTED_ORIGINS', 
+    default=["https://cefye.com", "https://www.cefye.com"]
+)
 
 RATELIMIT_USE_CACHE = 'default'
 
@@ -133,3 +139,18 @@ CACHES = {
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Configuración de proxy inverso y Rate Limit por IP real
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+RATELIMIT_IP_META_KEY = 'rag.utils.get_client_ip'
+
+OLLAMA_URL = "http://localhost:11434"
+
+DEFAULT_CHARSET = 'utf-8'
+
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+}

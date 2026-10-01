@@ -1,11 +1,9 @@
 from django.db import models
 
-
 class ConsultaFallida(models.Model):
-    motivo_fallo = models.TextField()
-
+    texto_consulta = models.TextField()
+    motivo_fallo = models.CharField(max_length=50) # 'sin_resultados', 'timeout', 'error_llm'
     procesado = models.BooleanField(default=False)
-
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -16,12 +14,10 @@ class ConsultaFallida(models.Model):
     def __str__(self):
         return f"Consulta fallida #{self.id}"
 
-
 class ContadorDemanda(models.Model):
     base_conocimiento_id = models.PositiveIntegerField()
 
     demanda = models.PositiveIntegerField(default=0)
-
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -40,7 +36,4 @@ class ContadorDemanda(models.Model):
         ]
 
     def __str__(self):
-        return (
-            f"Base de conocimiento "
-            f"{self.base_conocimiento_id}: {self.demanda}"
-        )
+        return f"Base de conocimiento {self.base_conocimiento_id}: {self.demanda}"
