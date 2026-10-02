@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import unicodedata
+=======
+
+>>>>>>> 355ff4ccd38a382dde1d0284ee78e5eadf234650
 from rest_framework import serializers
 from .models import Lead
 from .validators import PROVINCIAS_CYL
@@ -15,9 +19,25 @@ class LeadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = [
+<<<<<<< HEAD
             "id", "nombre", "email", "telefono", "provincia",
             "campo_estudio", "colectivo", "consentimiento_rgpd",
             "sesion_uuid", "procesado", "creado_en",
+=======
+            "id",
+            "nombre",
+            "email",
+            "telefono",
+            "provincia",
+            "campo_estudio",
+            "colectivo",
+            "experiencia_profesional",
+            "objetivo",
+            "consentimiento_rgpd",
+            "sesion_uuid",
+            "procesado",
+            "creado_en",
+>>>>>>> 355ff4ccd38a382dde1d0284ee78e5eadf234650
         ]
         read_only_fields = ["id", "procesado", "creado_en"]
 
@@ -43,4 +63,10 @@ class LeadSerializer(serializers.ModelSerializer):
 
         attrs["email"] = email
         attrs["telefono"] = telefono
+<<<<<<< HEAD
         return attrs
+=======
+
+        return attrs
+
+>>>>>>> 355ff4ccd38a382dde1d0284ee78e5eadf234650

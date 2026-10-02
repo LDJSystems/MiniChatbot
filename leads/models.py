@@ -10,6 +10,22 @@ class Lead(models.Model):
     provincia = models.CharField(max_length=100)
     campo_estudio = models.CharField(max_length=150)
     colectivo = models.CharField(max_length=100)
+<<<<<<< HEAD
+=======
+
+    experiencia_profesional = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+    )
+
+    objetivo = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+    )
+
+>>>>>>> 355ff4ccd38a382dde1d0284ee78e5eadf234650
     consentimiento_rgpd = models.BooleanField(default=False)
 
     sesion_uuid = models.UUIDField(
