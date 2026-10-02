@@ -380,7 +380,9 @@ class Command(BaseCommand):
                             'campo_estudio_raw': item['campo_estudio'],
                             'colectivo_raw':     item['colectivo'],
                             'url_origen':        item['url'],
-                            'estado':            'pendiente',
+                        },
+                        create_defaults={
+                            'estado': StagingCursos.PENDIENTE,  # solo en INSERT, nunca machaca
                         }
                     )
                     staging_ids.append(obj.pk)

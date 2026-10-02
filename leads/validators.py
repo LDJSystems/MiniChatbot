@@ -1,0 +1,4 @@
+PROVINCIAS_CYL = [
+    "Ávila", "Burgos", "León", "Palencia",
+    "Salamanca", "Segovia", "Soria", "Valladolid", "Zamora",
+]

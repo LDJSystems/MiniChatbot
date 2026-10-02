@@ -26,15 +26,28 @@ class BaseConocimiento(models.Model):
         ]
 
 class StagingCursos(models.Model):
+    # ── Estados del ciclo de vida de un registro en staging ──────────────────
+    PENDIENTE  = 'pendiente'   # recién cargado, pendiente de procesar
+    VALIDADO   = 'validado'    # revisado manualmente, listo para promover
+    PROCESADO  = 'procesado'   # promovido a BaseConocimiento con éxito
+    ERROR      = 'error'       # falló al intentar promover
+
+    ESTADO_CHOICES = [
+        (PENDIENTE,  'Pendiente'),
+        (VALIDADO,   'Validado'),
+        (PROCESADO,  'Procesado'),
+        (ERROR,      'Error'),
+    ]
+
     titulo_raw = models.TextField()
     contenido_raw = models.TextField(blank=True, null=True)
     provincia_raw = models.TextField(blank=True, null=True)
     localidad = models.CharField(max_length=100, blank=True, db_index=True)
     campo_estudio_raw = models.TextField(blank=True, null=True)
     colectivo_raw = models.TextField(blank=True, null=True)
-    url_origen = models.TextField(blank=True, null=True)
+    url_oficial = models.TextField(blank=True, null=True, unique=True)
     hash_contenido = models.CharField(max_length=64, unique=True)
-    estado = models.CharField(max_length=20, default='pendiente')
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=PENDIENTE)
     extraido_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
