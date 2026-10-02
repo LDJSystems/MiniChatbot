@@ -1,3 +1,4 @@
+
 from rest_framework import serializers
 
 from .models import Lead
@@ -15,6 +16,8 @@ class LeadSerializer(serializers.ModelSerializer):
             "provincia",
             "campo_estudio",
             "colectivo",
+            "experiencia_profesional",
+            "objetivo",
             "consentimiento_rgpd",
             "sesion_uuid",
             "procesado",
@@ -45,3 +48,4 @@ class LeadSerializer(serializers.ModelSerializer):
         attrs["telefono"] = telefono
 
         return attrs
+

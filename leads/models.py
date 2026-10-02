@@ -17,6 +17,18 @@ class Lead(models.Model):
 
     colectivo = models.CharField(max_length=100)
 
+    experiencia_profesional = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+    )
+
+    objetivo = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+    )
+
     consentimiento_rgpd = models.BooleanField(default=False)
 
     sesion_uuid = models.UUIDField(
