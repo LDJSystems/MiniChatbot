@@ -3,12 +3,33 @@ from django.contrib.postgres.search import SearchVectorField
 from django.contrib.postgres.indexes import GinIndex
 
 class BaseConocimiento(models.Model):
+    class ProvinciaChoices(models.TextChoices):
+        AVILA = 'Ávila', 'Ávila'
+        BURGOS = 'Burgos', 'Burgos'
+        LEON = 'León', 'León'
+        PALENCIA = 'Palencia', 'Palencia'
+        SALAMANCA = 'Salamanca', 'Salamanca'
+        SEGOVIA = 'Segovia', 'Segovia'
+        SORIA = 'Soria', 'Soria'
+        VALLADOLID = 'Valladolid', 'Valladolid'
+        ZAMORA = 'Zamora', 'Zamora'
+        GENERAL = 'General', 'General/Nacional'
+        ND = 'N/D', 'No Definido'
+
+    class ColectivoChoices(models.TextChoices):
+        DESEMPLEADOS = 'Desempleados', 'Desempleados'
+        OCUPADOS = 'Ocupados', 'Trabajadores Ocupados'
+        AUTONOMOS = 'Autónomos', 'Autónomos'
+        JOVENES = 'Jóvenes', 'Garantía Juvenil'
+        GENERAL = 'General', 'Público General'
+    
     titulo = models.CharField(max_length=255)
     contenido = models.TextField()
-    provincia = models.CharField(max_length=100)
+    provincia = models.CharField(max_length=100, choices=ProvinciaChoices.choices, default=ProvinciaChoices.ND)
     localidad = models.CharField(max_length=100, blank=True, db_index=True)
     campo_estudio = models.CharField(max_length=100)
-    colectivo = models.CharField(max_length=100)
+    colectivo = models.CharField(max_length=100, choices=ColectivoChoices.choices, default=ColectivoChoices.GENERAL)
+    
     url_oficial = models.TextField(blank=True, null=True)
     activo = models.BooleanField(default=True)
     vector_busqueda = SearchVectorField(editable=False)
@@ -26,11 +47,10 @@ class BaseConocimiento(models.Model):
         ]
 
 class StagingCursos(models.Model):
-    # ── Estados del ciclo de vida de un registro en staging ──────────────────
-    PENDIENTE  = 'pendiente'   # recién cargado, pendiente de procesar
-    VALIDADO   = 'validado'    # revisado manualmente, listo para promover
-    PROCESADO  = 'procesado'   # promovido a BaseConocimiento con éxito
-    ERROR      = 'error'       # falló al intentar promover
+    PENDIENTE  = 'pendiente'
+    VALIDADO   = 'validado'
+    PROCESADO  = 'procesado'
+    ERROR      = 'error'
 
     ESTADO_CHOICES = [
         (PENDIENTE,  'Pendiente'),

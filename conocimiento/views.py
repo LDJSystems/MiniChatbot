@@ -34,28 +34,3 @@ def buscar_conocimiento_view(request):
     ]
     
     return JsonResponse({'resultados': data}, status=200)
-
-@require_POST
-def chatbot_query_view(request):
-    try:
-        body = json.loads(request.body)
-        pregunta = body.get('pregunta', '').strip()
-        if not pregunta:
-            return JsonResponse({'error': 'La pregunta es obligatoria'}, status=400)
-        
-        contexto = ChatbotKnowledgeService.recuperar_contexto(pregunta)
-        
-        prompt_sistema = (
-            "Eres un asistente técnico especializado. "
-            "Responde a la pregunta del usuario basándote estrictamente en el siguiente contexto:\n\n"
-            f"{contexto}"
-        )
-        
-        return JsonResponse({
-            'pregunta': pregunta,
-            'contexto_utilizado': contexto,
-            'prompt_generado': prompt_sistema
-        }, status=200)
-        
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON inválido'}, status=400)

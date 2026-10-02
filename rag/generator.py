@@ -12,55 +12,41 @@ def _get_attr(obj, name, default="N/D"):
     return getattr(obj, name, default)
 
 def generar_respuesta_ia(pregunta: str, resultados: list) -> dict:
-    # Cambiado por defecto a localhost para ejecución nativa en Windows
     base_url = getattr(settings, 'OLLAMA_URL', 'http://localhost:11434')
     url = f"{base_url.rstrip('/')}/api/generate"
     model_name = getattr(settings, 'OLLAMA_MODEL', 'llama3.2:3b')
 
-    if not resultados:
-        # En lugar de responder directamente, pedimos al LLM que responda
-        # de forma honesta indicando que no tiene contexto específico
-        contexto_str = (
-            "No se han encontrado cursos o formaciones específicas en la base de datos "
-            "que coincidan con la consulta del usuario."
-        )
-        fallback = True
-    else:
-        contexto_str = "\n\n".join([
-            f"- Título: {_get_attr(r, 'titulo')}\n  Contenido: {_get_attr(r, 'contenido')}\n  URL: {_get_attr(r, 'url_oficial', None) or 'N/D'}"
-            for r in resultados
-        ])
-        fallback = False
+    # Safety net: si por algún motivo llega vacío, forzamos un string vacío en el contexto
+    contexto_str = "\n\n".join([
+        f"- Curso: {_get_attr(r, 'titulo')}\n  Descripción: {_get_attr(r, 'contenido')}\n  Enlace: {_get_attr(r, 'url_oficial', None) or 'N/D'}"
+        for r in resultados
+    ]) if resultados else "No hay resultados disponibles en la base de datos."
 
-    # Prompt blindado contra Prompt Injection
+    # Prompt reestructurado (Fase 4.3: Idioma, Tono, Formato y Anti-Alucinación)
     prompt = (
-    "Eres un asistente especializado en formación y empleo de Castilla y León. "
-    "Ten en cuenta estas equivalencias de nombres en la base de datos: "
-    "'CEFYE-LEON' o 'CEFYE León' equivale a cursos impartidos en León capital. "
-    "'CEFYE-BURGOS' o 'CEFYE Burgos' equivale a cursos impartidos en Burgos capital. "
-    "'CEFYE-PALENCIA' o 'CEFYE Palencia' equivale a cursos impartidos en Palencia capital. "
-    "'CEFYE-VALLADOLID' o 'CEFYE Valladolid' equivale a cursos impartidos en Valladolid capital. "
-    "'CEFYE-ZAMORA' o 'CEFYE Zamora' equivale a cursos impartidos en Zamora capital. "
-    "'CEFYE-SALAMANCA' o 'CEFYE Salamanca' equivale a cursos impartidos en Salamanca capital. "
-    "'CEFYE-SEGOVIA' o 'CEFYE Segovia' equivale a cursos impartidos en Segovia capital. "
-    "'CEFYE-SORIA' o 'CEFYE Soria' equivale a cursos impartidos en Soria capital. "
-    "'CEFYE-AVILA' o 'CEFYE Ávila' equivale a cursos impartidos en Ávila capital. "
-    "Usa exclusivamente el siguiente contexto para responder a la pregunta. "
-    "Si el contexto no contiene información relevante, indícalo amablemente y sugiere "
-    "al usuario que reformule su consulta o contacte con el servicio de orientación.\n\n"
-    f"CONTEXTO:\n{contexto_str}\n\n"
-    f"PREGUNTA: {pregunta}\n\n"
-    "RESPUESTA DIRECTA:"
-)
+        "Eres el asistente virtual experto en formación y empleo de CEFYE en Castilla y León. "
+        "Tu objetivo es recomendar cursos basándote ÚNICAMENTE en el contexto proporcionado.\n\n"
+        "REGLAS ESTRICTAS:\n"
+        "1. IDIOMA Y TONO: Responde siempre en español. Mantén un tono profesional, empático y directo. Trata al usuario de tú.\n"
+        "2. FORMATO: Usa Markdown para estructurar tu respuesta. Usa negritas para los títulos de los cursos y listas con viñetas para que sea fácil de leer.\n"
+        "3. NO INVENTES INFORMACIÓN: Basa tu respuesta EXCLUSIVAMENTE en el bloque de CONTEXTO. Si te preguntan algo que no aparece en el contexto, responde exactamente: 'No dispongo de esa información específica en este momento, ¿quieres que un asesor de nuestro equipo se ponga en contacto contigo?'. No inventes fechas, modalidades ni requisitos.\n"
+        "4. GEOGRAFÍA: Si un curso indica 'CEFYE-LEON' (o cualquier otra provincia como Burgos, Palencia, Valladolid, Zamora, Salamanca, Segovia, Soria, Ávila), significa que se imparte presencialmente en esa capital.\n\n"
+        f"CONTEXTO RECUPERADO:\n{contexto_str}\n\n"
+        f"PREGUNTA DEL USUARIO:\n{pregunta}\n\n"
+        "RESPUESTA:"
+    )
 
     payload = {
         "model": model_name,
         "prompt": prompt,
-        "stream": False
+        "stream": False,
+        "options": {
+            "temperature": 0.1,  # Temperatura baja para maximizar la adherencia al contexto
+            "top_k": 10
+        }
     }
 
     try:
-        # Timeout ampliado a 90s para evitar saturación en consultas masivas
         response = requests.post(url, json=payload, timeout=90)
         response.raise_for_status()
         data = response.json()
@@ -69,12 +55,12 @@ def generar_respuesta_ia(pregunta: str, resultados: list) -> dict:
         if not texto:
             raise ValueError("Ollama devolvió una respuesta vacía.")
 
-        logger.debug(f"[Generator] Respuesta Ollama ({len(texto)} chars), fallback={fallback}")
+        logger.debug(f"[Generator] Respuesta Ollama ({len(texto)} chars generados).")
 
         return {
             "texto_respuesta": texto,
-            "requiere_accion_comercial": fallback,
-            "fallback_activado": fallback
+            "requiere_accion_comercial": False,
+            "fallback_activado": False
         }
 
     except requests.exceptions.Timeout:
@@ -86,8 +72,9 @@ def generar_respuesta_ia(pregunta: str, resultados: list) -> dict:
     except (ValueError, KeyError) as e:
         logger.error(f"[Generator] Error procesando respuesta de Ollama: {e}")
 
+    # Fallback técnico por caída del LLM
     return {
-        "texto_respuesta": "El servicio de IA se encuentra temporalmente saturado. Por favor, intenta más tarde.",
+        "texto_respuesta": "El servicio de inteligencia artificial se encuentra temporalmente saturado o en mantenimiento. Por favor, intenta de nuevo en unos minutos.",
         "requiere_accion_comercial": True,
         "fallback_activado": True
     }

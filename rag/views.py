@@ -5,6 +5,8 @@ from rest_framework import status
 from django_ratelimit.decorators import ratelimit
 from django.db.models import F
 from django.db import IntegrityError
+
+from .serializers import ChatRequestSerializer
 from telemetry.models import ConsultaFallida, ContadorDemanda
 from rag.retriever import recuperar_cursos
 from rag.generator import generar_respuesta_ia
@@ -21,39 +23,39 @@ def chat_ask_view(request):
             status=status.HTTP_429_TOO_MANY_REQUESTS
         )
 
-    data_payload = request.data
-    pregunta = data_payload.get('pregunta', '').strip()
-    sesion_uuid = data_payload.get('sesion_uuid')
-    filtros = data_payload.get('filtros', {})
-
-    if not pregunta:
-        return Response({"error": "La consulta no puede estar vacía"}, status=status.HTTP_400_BAD_REQUEST)
+    # 1. Validación estricta con DRF (Fase 4.2)
+    # is_valid(raise_exception=True) detiene la ejecución y devuelve un HTTP 400 estándar
+    # si la pregunta está vacía, excede 1000 caracteres o 'filtros' no es un dict.
+    serializer = ChatRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True) 
+    
+    pregunta = serializer.validated_data['pregunta']
+    filtros = serializer.validated_data.get('filtros', {})
+    
+    # sesion_uuid es opcional, lo extraemos del payload original
+    sesion_uuid = request.data.get('sesion_uuid')
 
     try:
-        # 1. Gestionar sesión
+        # 2. Gestionar sesión
         sesion = ChatSessionService.obtener_o_crear_sesion(sesion_uuid, filtros)
 
-        # 2. Recuperación de contexto
+        # 3. Recuperación de contexto
         resultados = recuperar_cursos(pregunta, filtros)
         
         # --- CORTOCIRCUITO LÓGICO ---
         if not resultados:
             logger.info(f"[Escalado] Cero resultados para: '{pregunta}'. Derivando a agente.")
             
-            # Registrar en telemetría el fallo de búsqueda
             _registrar_fallo(pregunta, 'sin_resultados')
             
-            # Preparar payload de derivación
             resultado_escalado = {
                 "texto_respuesta": "No he encontrado formación exacta para tu consulta en este momento. ¿Deseas que un orientador de nuestro equipo contacte contigo para analizar tu caso en detalle?",
                 "requiere_accion": "ESCALADO_AGENTE",
                 "contexto_busqueda": pregunta
             }
             
-            # Guardar en el historial de la sesión
             ChatSessionService.guardar_intercambio(sesion, pregunta, resultado_escalado)
             
-            # Finalizar petición sin despertar al LLM
             return Response({
                 "sesion_uuid": str(sesion.uuid),
                 **resultado_escalado
@@ -66,16 +68,16 @@ def chat_ask_view(request):
         if es_listado_masivo:
             resultados_para_ia = resultados[:10]
 
-        # 3. Generación LLM (El LLM solo se ejecuta si hay cursos reales)
+        # 4. Generación LLM
         resultado_ia = generar_respuesta_ia(pregunta, resultados_para_ia)
 
         if es_listado_masivo and "texto_respuesta" in resultado_ia:
             resultado_ia["texto_respuesta"] += f"\n\n*(Mostrando los primeros 10 resultados de un total de {len(resultados)} encontrados en la provincia).* "
 
-        # 4. Persistencia del intercambio
+        # 5. Persistencia del intercambio
         ChatSessionService.guardar_intercambio(sesion, pregunta, resultado_ia)
 
-        # 5. Registro de Telemetría (Demanda)
+        # 6. Registro de Telemetría (Demanda)
         _registrar_demanda(resultados_para_ia)
 
         respuesta_final = {

@@ -1,21 +1,13 @@
-import re
 import logging
-import operator
-from functools import reduce
 from django.db import models
+from django.db.models import Q, F
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from conocimiento.models import BaseConocimiento
 
 logger = logging.getLogger(__name__)
 
-UMBRAL_MINIMO = 0.01
-
-STOPWORDS = {
-    "que", "con", "los", "las", "del", "para", "una", "uno", "como",
-    "por", "sus", "hay", "son", "mas", "pero", "esta", "este", "hay",
-    "donde", "cuando", "cual", "cuales", "quien", "quienes", "sobre",
-    "entre", "desde", "hasta", "sin", "tras", "ante", "bajo", "segun"
-}
+# 1. Umbral calibrado (Fase 4)
+UMBRAL_MINIMO = 0.12
 
 MAPA_LOCALIDADES_CYL = {
     "Ávila": ["Ávila", "Arenas de San Pedro", "Arévalo", "Candeleda", "El Barco de Ávila", "Las Navas del Marqués"],
@@ -29,7 +21,6 @@ MAPA_LOCALIDADES_CYL = {
     "Zamora": ["Zamora", "Benavente", "Toro", "Morales del Vino", "Puebla de Sanabria", "Villaralbo"]
 }
 
-# Tabla de traducción compilada una sola vez a nivel de módulo
 TRANSLATION_TABLE = str.maketrans('áéíóúñ', 'aeioun')
 
 def _limpiar_texto(texto: str) -> str:
@@ -42,16 +33,11 @@ def recuperar_cursos(pregunta: str, filtros: dict = None) -> list:
         filtros = {}
         
     preg_limpia = _limpiar_texto(pregunta)
-    tokens_geograficos = set()
 
+    # Detección geográfica si no viene forzada en los filtros
     if not filtros.get('provincia'):
         encontrado = False
         for prov, localidades in MAPA_LOCALIDADES_CYL.items():
-            tokens_geograficos.add(_limpiar_texto(prov))
-            for loc in localidades:
-                for w in _limpiar_texto(loc).split():
-                    tokens_geograficos.add(w)
-            
             if _limpiar_texto(prov) in preg_limpia:
                 filtros['provincia'] = prov
                 encontrado = True
@@ -65,9 +51,6 @@ def recuperar_cursos(pregunta: str, filtros: dict = None) -> list:
             if encontrado:
                 break
 
-    palabras_listado = ["todos", "listar", "muestrame", "provincia", "listado"]
-    es_consulta_amplia = any(k in preg_limpia for k in palabras_listado)
-
     queryset = BaseConocimiento.objects.filter(activo=True)
     
     provincia = filtros.get('provincia')
@@ -75,58 +58,52 @@ def recuperar_cursos(pregunta: str, filtros: dict = None) -> list:
     campo = filtros.get('campo_estudio')
     colectivo = filtros.get('colectivo')
 
+    # 2. Filtros Geográficos Inclusivos (Evitar que desaparezcan cursos generales)
+    condicion_general = (
+        Q(provincia__iexact='General') | 
+        Q(provincia__iexact='N/D') | 
+        Q(provincia__exact='') | 
+        Q(provincia__isnull=True)
+    )
+
     if provincia:
         localidades_provincia = MAPA_LOCALIDADES_CYL.get(provincia, [])
         queryset = queryset.filter(
-            models.Q(provincia__icontains=provincia) | 
-            models.Q(localidad__in=localidades_provincia)
+            Q(provincia__icontains=provincia) | 
+            Q(localidad__in=localidades_provincia) |
+            condicion_general
         )
-    if localidad:
-        queryset = queryset.filter(localidad__iexact=localidad)
+    elif localidad: # Si hay localidad pero por algún motivo no provincia
+        queryset = queryset.filter(
+            Q(localidad__iexact=localidad) |
+            condicion_general
+        )
+
     if campo:
         queryset = queryset.filter(campo_estudio=campo)
     if colectivo:
         queryset = queryset.filter(colectivo=colectivo)
 
-    if es_consulta_amplia and provincia:
-        resultados = list(queryset.order_by('localidad', 'titulo')[:10])
-    else:
-        terminos = [
-            w for w in re.findall(r'\w+', pregunta)
-            if len(w) > 2
-            and _limpiar_texto(w) not in tokens_geograficos
-            and _limpiar_texto(w) not in STOPWORDS
-        ]
+    # Cortocircuito para consultas explícitas de listados
+    palabras_listado = ["todos", "listar", "muestrame", "provincia", "listado"]
+    if any(k in preg_limpia for k in palabras_listado) and provincia:
+        return list(queryset.order_by('localidad', 'titulo')[:15])
 
-        if not terminos:
-            terminos = ["curso", "formacion", "taller", "empleo"]
-
-        logger.debug(f"[Retriever] Términos de búsqueda finales: {terminos}")
-
-        query = reduce(operator.or_, [SearchQuery(t, config='spanish') for t in terminos])
-        resultados = list(
-            queryset.filter(
-                vector_busqueda=query
-            ).annotate(
-                rank=SearchRank('vector_busqueda', query)
-            ).filter(
-                rank__gte=UMBRAL_MINIMO
-            ).order_by('localidad', '-rank')
-        )
-
-        logger.debug(f"[Retriever] Resultados full-text: {len(resultados)}")
-
-        # Fallback geográfico estricto: localidad__iexact para evitar falsos positivos
-        if not resultados:
-            if localidad:
-                logger.debug(f"[Retriever] Fallback geográfico activado para localidad: {localidad}")
-                resultados = list(
-                    queryset.filter(localidad__iexact=localidad)
-                    .order_by('titulo')
-                )
-            elif provincia:
-                logger.debug(f"[Retriever] Fallback geográfico activado para provincia: {provincia}")
-                resultados = list(queryset.order_by('localidad', 'titulo'))
+    # 3. Búsqueda Full-Text optimizada con Websearch
+    # 'websearch' descarta palabras de ruido (el, la, un) automáticamente y entiende lenguaje natural
+    query = SearchQuery(pregunta, config='spanish', search_type='websearch')
+    
+    resultados = list(
+        queryset.filter(
+            vector_busqueda=query
+        ).annotate(
+            # normalization=2 divide el rank por el logaritmo de la longitud del documento
+            # Esto evita que los cursos con descripciones gigantes salgan siempre primeros
+            rank=SearchRank(F('vector_busqueda'), query, normalization=2)
+        ).filter(
+            rank__gte=UMBRAL_MINIMO
+        ).order_by('-rank', 'localidad')
+    )
 
     logger.debug(f"[Retriever] Total resultados devueltos: {len(resultados)}")
     return resultados
