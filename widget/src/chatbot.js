@@ -1,37 +1,78 @@
 (function () {
     "use strict";
-
+    
     const WIDGET_ID = "chatbot-widget";
     const SESSION_KEY = "chatbot_session_uuid";
 
-    const STYLES = ` 
+    /*
+     * false = chatbot funcionando sin IA (respuestas locales)
+     * true  = utiliza la IA (o el mock, según MOCK_API)
+     */
+    const USAR_IA = true;
+
+    /*
+     * Solo importa si USAR_IA es true.
+     *
+     * MOCK_API = true  -> respuestas de prueba (archivos JSON)
+     * MOCK_API = false -> IA real de Dev A (/api/chat/ask/)
+     */
+    const MOCK_API = true;
+
+    /*
+     * Solo importa si MOCK_API es true.
+     *
+     * "ok"       -> respuesta normal del bot
+     * "fallback" -> el bot "no sabe" y sale el formulario de leads
+     */
+    const MOCK_SCENARIO = "ok";
+
+    // Carpeta donde Django sirve los JSON de prueba
+    const MOCK_BASE = "/static/";
+
+    const PROVINCIAS = [
+        "Salamanca",
+        "Ávila",
+        "Segovia",
+        "Valladolid",
+        "Zamora",
+        "León",
+        "Palencia",
+        "Burgos",
+        "Soria"
+    ];
+
+    const CURSOS = [
+        "Administración y gestión",
+        "Comercio y marketing",
+        "Informática y comunicaciones",
+        "Sanidad",
+        "Otro"
+    ];
+
+    const STYLES = `
         :host {
             all: initial;
             font-family: Arial, Helvetica, sans-serif;
         }
-    
-        *,
-        *::before,
-        *::after {
+
+        *, *::before, *::after {
             box-sizing: border-box;
-        
         }
-        
+
         [hidden] {
             display: none !important;
         }
-            
+
         .chatbot-button {
             position: fixed;
             right: 20px;
             bottom: 20px;
             width: 60px;
             height: 60px;
-            border-radius: 50%;
             border: 0;
+            border-radius: 50%;
             background: #0b5cff;
             color: #fff;
-            font-size: 14px;
             cursor: pointer;
             z-index: 2147483647;
             box-shadow: 0 4px 12px rgba(0,0,0,.3);
@@ -50,9 +91,8 @@
             background: #fff;
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,.25);
-            z-index: 2147483647;
-            font-family: Arial, sans-serif;
             overflow: hidden;
+            z-index: 2147483647;
         }
 
         .chatbot-header {
@@ -92,8 +132,8 @@
             border-radius: 10px;
             max-width: 85%;
             font-size: 14px;
-            white-space: pre-line;
             line-height: 1.4;
+            white-space: pre-line;
         }
 
         .chatbot-message--bot {
@@ -120,15 +160,14 @@
         .chatbot-option {
             padding: 6px 12px;
             border: 1px solid #0b5cff;
+            border-radius: 16px;
             background: #fff;
             color: #0b5cff;
-            border-radius: 16px;
             cursor: pointer;
             font-size: 13px;
         }
 
-        .chatbot-option:hover,
-        .chatbot-option:focus {
+        .chatbot-option:hover {
             background: #0b5cff;
             color: #fff;
         }
@@ -144,52 +183,83 @@
 
         .chatbot-form textarea,
         .chatbot-lead input {
+            width: 100%;
             padding: 8px;
-            font: inherit;
             border: 1px solid #ccc;
             border-radius: 6px;
-            box-sizing: border-box;
-            width: 100%;
+            font: inherit;
         }
 
         .chatbot-send,
         .chatbot-lead button {
             padding: 8px;
             border: 0;
+            border-radius: 6px;
             background: #0b5cff;
             color: #fff;
-            border-radius: 6px;
             cursor: pointer;
         }
 
-        .chatbot-button:hover {
-            transform: scale(1.05);
+        /* Política de privacidad */
+
+        .chatbot-privacy {
+            padding: 8px;
+            background: #f5f6f8;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #444;
         }
 
-        .chatbot-button:focus-visible,
-        .chatbot-close:focus-visible,
-        .chatbot-option:focus-visible,
-        .chatbot-send:focus-visible {
-            outline: 3px solid rgba(11, 92, 255, .35);
-            outline-offset: 2px;
+        .chatbot-privacy strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #222;
+        }
+
+        .chatbot-privacy p {
+            margin: 0 0 6px;
+        }
+
+        .chatbot-privacy p:last-child {
+            margin-bottom: 0;
+        }
+
+        .chatbot-privacy-link {
+            color: #0b5cff;
+            text-decoration: underline;
+        }
+
+        .chatbot-checkbox {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .chatbot-checkbox input {
+            width: auto;
+            margin-top: 2px;
+            flex: 0 0 auto;
         }
 
         .chatbot-typing {
             display: flex;
-            align-items: center;
             gap: 4px;
+            align-items: center;
+            width: fit-content;
             padding: 10px 12px;
             background: #eef1f6;
             border-radius: 10px;
-            align-self: flex-start;
         }
 
         .chatbot-typing span {
             width: 6px;
             height: 6px;
-            background: #777;
             border-radius: 50%;
-            animation: chatbotTyping 1.2s infinite ease-in-out;
+            background: #777;
+            animation: typing 1.2s infinite ease-in-out;
         }
 
         .chatbot-typing span:nth-child(2) {
@@ -200,7 +270,7 @@
             animation-delay: .3s;
         }
 
-        @keyframes chatbotTyping {
+        @keyframes typing {
             0%, 60%, 100% {
                 transform: translateY(0);
                 opacity: .4;
@@ -228,46 +298,7 @@
                 height: 70vh;
             }
         }
-`;
-
-    const PROVINCIAS = [
-        "Salamanca",
-        "Ávila",
-        "Segovia",
-        "Valladolid",
-        "Zamora",
-        "León",
-        "Palencia",
-        "Burgos",
-        "Soria"
-    ];
-
-    const CURSOS = [
-        "Administración y gestión",
-        "Comercio y marketing",
-        "Informática y comunicaciones",
-        "Sanidad",
-        "Otro"
-    ];
-
-    const state = {
-        isOpen: false,
-        isLoading: false,
-        sessionUuid: null,
-
-        etapa: "provincia", // etapas: 'provincia', 'campo_estudio', 'pregunta', 'lead'
-
-        provincia: null,
-        campoEstudio: null,
-        pregunta: null,
-
-        nombre: null,
-        email: null,
-        telefono: null,
-
-        fallbackActivado: false,
-        fallbackIntentos: 0
-    };
+    `;
 
     const TEMPLATE = `
         <style>${STYLES}</style>
@@ -277,9 +308,7 @@
             class="chatbot-button"
             id="chatbot-toggle"
             aria-label="Abrir chatbot"
-            aria-expanded="false"
-            aria-controls="chatbot-panel"
-        >
+            aria-expanded="false">
             Chat
         </button>
 
@@ -289,8 +318,8 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="chatbot-title"
-            hidden
-        >
+            hidden>
+
             <header class="chatbot-header">
                 <h2 id="chatbot-title">Asistente CEFYE</h2>
 
@@ -298,8 +327,7 @@
                     type="button"
                     class="chatbot-close"
                     id="chatbot-close"
-                    aria-label="Cerrar chatbot"
-                >
+                    aria-label="Cerrar">
                     &times;
                 </button>
             </header>
@@ -307,48 +335,117 @@
             <div
                 class="chatbot-messages"
                 id="chatbot-messages"
-                aria-live="polite"
-                aria-atomic="false"
-            ></div>
+                aria-live="polite">
+            </div>
 
             <div
                 class="chatbot-options"
                 id="chatbot-options"
-                role="group"
-                aria-label="Opciones"
-                hidden
-            ></div>
+                hidden>
+            </div>
 
-            <form class="chatbot-form" id="chatbot-form" hidden>
+            <form
+                class="chatbot-form"
+                id="chatbot-form"
+                hidden>
+
                 <textarea
                     id="chatbot-question"
                     rows="2"
                     placeholder="Escribe tu consulta..."
-                    aria-label="Respuesta"
-                ></textarea>
+                    aria-label="Consulta">
+                </textarea>
 
                 <button
                     type="submit"
                     class="chatbot-send"
-                    id="chatbot-send"
-                >
+                    id="chatbot-send">
                     Enviar
                 </button>
             </form>
 
-            <form class="chatbot-lead" id="chatbot-lead" hidden>
-                <label for="chatbot-name">Nombre</label>
-                <input id="chatbot-name" name="nombre" type="text" autocomplete="name" required>
+            <form
+                class="chatbot-lead"
+                id="chatbot-lead"
+                hidden>
 
-                <label for="chatbot-email">Email</label>
-                <input id="chatbot-email" name="email" type="email" autocomplete="email" required>
+                <div class="chatbot-privacy">
 
-                <label for="chatbot-phone">Teléfono</label>
-                <input id="chatbot-phone" name="telefono" type="tel" autocomplete="tel" required>
+                    <strong>
+                        Política de privacidad
+                    </strong>
 
-                <button type="submit" id="chatbot-lead-submit">
-                    Solicitar contacto
+                    <p>
+                        Los datos que nos facilites serán tratados por
+                        CEFYE con la finalidad de atender tu solicitud
+                        de información sobre cursos y formación, así como
+                        contactar contigo en relación con dicha solicitud.
+                    </p>
+
+                    <p>
+                        Puedes consultar información adicional sobre el
+                        tratamiento de tus datos, tus derechos y la forma
+                        de ejercerlos en nuestra
+                        <a
+                            href="/politica-de-privacidad/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="chatbot-privacy-link">
+                            Política de Privacidad
+                        </a>.
+                    </p>
+
+                </div>
+
+                <label class="chatbot-checkbox">
+
+                    <input
+                        id="chatbot-privacy-accept"
+                        type="checkbox"
+                        required>
+
+                    <span>
+                        He leído y acepto la política de privacidad.
+                    </span>
+
+                </label>
+
+                <label for="chatbot-name">
+                    Nombre
+                </label>
+
+                <input
+                    id="chatbot-name"
+                    type="text"
+                    autocomplete="name"
+                    required>
+
+                <label for="chatbot-email">
+                    Correo electrónico
+                </label>
+
+                <input
+                    id="chatbot-email"
+                    type="email"
+                    autocomplete="email"
+                    required>
+
+                <label for="chatbot-phone">
+                    Teléfono
+                </label>
+
+                <input
+                    id="chatbot-phone"
+                    type="tel"
+                    autocomplete="tel"
+                    required>
+
+                <button
+                    type="submit"
+                    id="chatbot-lead-submit">
+                    Solicitar información
                 </button>
+
             </form>
         </section>
     `;
@@ -361,81 +458,95 @@
         document.body.appendChild(host);
     }
 
-    const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+    const root =
+        host.shadowRoot ||
+        host.attachShadow({ mode: "open" });
+
     root.innerHTML = TEMPLATE;
 
+    const $ = id => root.getElementById(id);
+
     const ui = {
-        toggle: root.getElementById("chatbot-toggle"),
-        panel: root.getElementById("chatbot-panel"),
-        close: root.getElementById("chatbot-close"),
-
-        messages: root.getElementById("chatbot-messages"),
-        options: root.getElementById("chatbot-options"),
-
-        form: root.getElementById("chatbot-form"),
-        question: root.getElementById("chatbot-question"),
-        send: root.getElementById("chatbot-send"),
-
-        lead: root.getElementById("chatbot-lead"),
-        name: root.getElementById("chatbot-name"),
-        email: root.getElementById("chatbot-email"),
-        phone: root.getElementById("chatbot-phone"),
-        leadSubmit: root.getElementById("chatbot-lead-submit")
+        toggle: $("chatbot-toggle"),
+        panel: $("chatbot-panel"),
+        close: $("chatbot-close"),
+        messages: $("chatbot-messages"),
+        options: $("chatbot-options"),
+        form: $("chatbot-form"),
+        question: $("chatbot-question"),
+        send: $("chatbot-send"),
+        lead: $("chatbot-lead"),
+        privacyAccept: $("chatbot-privacy-accept"),
+        name: $("chatbot-name"),
+        email: $("chatbot-email"),
+        phone: $("chatbot-phone"),
+        leadSubmit: $("chatbot-lead-submit")
     };
 
-    function createNewSessionUuid() {
-        const uuid =
-            typeof crypto !== "undefined" &&
-            typeof crypto.randomUUID === "function"
+    const state = {
+        etapa: "provincia",
+        provincia: null,
+        campoEstudio: null,
+        sessionUuid: null,
+        loading: false,
+        finalizado: false,
+        fallbackIntentos: 0
+    };
+
+    function getSession() {
+        let id = sessionStorage.getItem(SESSION_KEY);
+
+        if (!id) {
+            id = crypto.randomUUID
                 ? crypto.randomUUID()
-                : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                : `${Date.now()}-${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
 
-        sessionStorage.setItem(SESSION_KEY, uuid);
-        return uuid;
+            sessionStorage.setItem(SESSION_KEY, id);
+        }
+
+        return id;
     }
 
-    function getSessionUuid() {
-        const existing = sessionStorage.getItem(SESSION_KEY);
-        return existing ? existing : createNewSessionUuid();
-    }
-
-    function addMessage(text, role) {
+    function addMessage(text, type = "bot") {
         const message = document.createElement("p");
-        message.className = `chatbot-message chatbot-message--${role}`;
+
+        message.className =
+            `chatbot-message chatbot-message--${type}`;
+
         message.textContent = text;
 
         ui.messages.appendChild(message);
 
-        setTimeout(() => {
-            ui.messages.scrollTop = ui.messages.scrollHeight;
-        }, 10);
+        ui.messages.scrollTop =
+            ui.messages.scrollHeight;
     }
 
-    /*
-     * Muestra la animación de los tres puntos (Escribiendo...)
-     */
     function showTyping() {
-        hideTyping(); // Previene duplicados
+        hideTyping();
 
-        const typingEl = document.createElement("div");
-        typingEl.id = "chatbot-typing";
-        typingEl.className = "chatbot-typing";
-        typingEl.innerHTML = "<span></span><span></span><span></span>";
+        const typing =
+            document.createElement("div");
 
-        ui.messages.appendChild(typingEl);
+        typing.id = "chatbot-typing";
+        typing.className = "chatbot-typing";
 
-        setTimeout(() => {
-            ui.messages.scrollTop = ui.messages.scrollHeight;
-        }, 10);
+        typing.innerHTML =
+            "<span></span><span></span><span></span>";
+
+        ui.messages.appendChild(typing);
+
+        ui.messages.scrollTop =
+            ui.messages.scrollHeight;
     }
 
-    /*
-     * Oculta la animación de los tres puntos
-     */
     function hideTyping() {
-        const typingEl = root.getElementById("chatbot-typing");
-        if (typingEl) {
-            typingEl.remove();
+        const typing =
+            $("chatbot-typing");
+
+        if (typing) {
+            typing.remove();
         }
     }
 
@@ -444,366 +555,610 @@
         ui.options.hidden = true;
     }
 
-    function renderOptions(options) {
+    function showOptions(options) {
         clearOptions();
+
         ui.options.hidden = false;
 
-        options.forEach(function (option) {
-            const button = document.createElement("button");
+        options.forEach(option => {
+
+            const button =
+                document.createElement("button");
+
             button.type = "button";
             button.className = "chatbot-option";
             button.textContent = option;
-            button.setAttribute("aria-label", option);
 
-            button.addEventListener("click", function () {
+            button.onclick = () => {
+
+                if (state.loading) return;
+
+                clearOptions();
+
+                addMessage(option, "user");
+
                 selectOption(option);
-            });
+            };
 
             ui.options.appendChild(button);
         });
+    }
 
-        const firstButton = ui.options.querySelector("button");
-        if (firstButton) {
-            firstButton.focus();
-        }
+    function start() {
+
+        state.etapa = "provincia";
+        state.provincia = null;
+        state.campoEstudio = null;
+        state.fallbackIntentos = 0;
+        state.finalizado = false;
+
+        ui.messages.innerHTML = "";
+
+        clearOptions();
+
+        ui.form.hidden = true;
+        ui.lead.hidden = true;
+
+        ui.privacyAccept.checked = false;
+
+        addMessage(
+            `👋 ¡Bienvenido al chat de CEFYE!
+
+Estoy aquí para ayudarte a encontrar el curso que mejor se adapte a tus objetivos.
+
+Para empezar, ¿en qué provincia te gustaría realizar la formación?`
+        );
+
+        showOptions(PROVINCIAS);
     }
 
     function selectOption(value) {
-        if (state.isLoading) return;
-
-        clearOptions();
-        addMessage(value, "user");
-        processOptionAnswer(value);
-    }
-
-    /*
-     * Control del flujo por etapas
-     */
-    function askNextQuestion() {
-        clearOptions();
 
         if (state.etapa === "provincia") {
-            ui.form.hidden = true;
+
+            state.provincia = value;
+            state.etapa = "campo";
+
             addMessage(
-                `👋 ¡Bienvenido al chat de CEFYE!\nEstoy aquí para ayudarte a encontrar el curso que mejor se adapte a tus objetivos.\nPara empezar, ¿en qué provincia te gustaría realizar la formación?`,
-                "bot"
+                "Perfecto. ¿En qué área formativa estás interesado?"
             );
-            renderOptions(PROVINCIAS);
+
+            showOptions(CURSOS);
+
             return;
         }
 
-        if (state.etapa === "campo_estudio") {
-            ui.form.hidden = true;
-            addMessage("Perfecto. ¿En qué área formativa estás interesado?", "bot");
-            renderOptions(CURSOS);
-            return;
-        }
+        if (state.etapa === "campo") {
 
-        if (state.etapa === "pregunta") {
-            clearOptions();
-            addMessage("¡Estupendo! ¿Qué dudas tienes o en qué curso te gustaría obtener más información?", "bot");
-            
-            // Se habilita la caja de texto para que interactúe la IA
+            state.campoEstudio = value;
+            state.etapa = "pregunta";
+
+            addMessage(
+                "¡Estupendo! Ya puedo ayudarte. ¿Qué dudas tienes o qué información sobre los cursos te gustaría conocer?"
+            );
+
             ui.form.hidden = false;
-            ui.question.hidden = false;
-            ui.send.hidden = false;
+
             ui.question.focus();
         }
     }
 
-    function processTextAnswer(value) {
-        if (state.etapa === "pregunta") {
-            state.pregunta = value;
-            sendQuestion();
-            return true;
-        }
-        return false;
-    }
+    /*
+     * CHAT SIN IA
+     */
+    function respuestaLocal(pregunta) {
 
-    function resetConversation() {
-        ui.messages.innerHTML = "";
-        clearOptions();
+        const texto =
+            pregunta.toLowerCase();
 
-        ui.lead.hidden = true;
-        ui.form.hidden = true;
+        if (
+            texto.includes("curso") ||
+            texto.includes("cursos") ||
+            texto.includes("formación")
+        ) {
 
-        ui.question.value = "";
-        ui.name.value = "";
-        ui.email.value = "";
-        ui.phone.value = "";
+            return {
+                entendida: true,
 
-        state.isLoading = false;
-        state.etapa = "provincia";
-        state.provincia = null;
-        state.campoEstudio = null;
-        state.pregunta = null;
-        state.nombre = null;
-        state.email = null;
-        state.telefono = null;
-        state.fallbackActivado = false;
-        state.fallbackIntentos = 0;
+                texto:
+                    `Tenemos formación relacionada con ${state.campoEstudio}.
 
-        state.sessionUuid = createNewSessionUuid();
+Puedo ayudarte con información sobre los cursos disponibles, requisitos, modalidad y opciones de formación.
 
-        askNextQuestion();
-    }
-
-    function open() {
-        if (state.isOpen) return;
-
-        resetConversation();
-        state.isOpen = true;
-        ui.panel.hidden = false;
-        ui.toggle.setAttribute("aria-expanded", "true");
-
-        setTimeout(focusFirstElement, 0);
-    }
-
-    function close() {
-        state.isOpen = false;
-        ui.panel.hidden = true;
-        ui.toggle.setAttribute("aria-expanded", "false");
-        ui.toggle.focus();
-    }
-
-    function getFocusableElements() {
-        const elements = root.querySelectorAll(
-            "button:not([disabled]), textarea:not([disabled]), input:not([disabled])"
-        );
-
-        return Array.from(elements).filter(
-            element => !element.hidden && element.offsetParent !== null
-        );
-    }
-
-    function focusFirstElement() {
-        const focusable = getFocusableElements();
-        if (focusable.length) {
-            focusable[1] ? focusable[1].focus() : focusable[0].focus();
-        }
-    }
-
-    function handleKeyboard(event) {
-        if (!state.isOpen) return;
-
-        if (event.key === "Escape") {
-            event.preventDefault();
-            close();
-            return;
+¿Qué información concreta quieres conocer?`
+            };
         }
 
         if (
-            event.key === "Enter" &&
-            root.activeElement === ui.question &&
-            !event.shiftKey
+            texto.includes("precio") ||
+            texto.includes("coste") ||
+            texto.includes("cuesta")
         ) {
-            event.preventDefault();
-            handleSubmit(event);
-            return;
+
+            return {
+                entendida: true,
+
+                texto:
+                    "Podemos informarte sobre los cursos disponibles y sus condiciones. Si quieres información concreta sobre precios, podemos revisar tu caso y contactar contigo."
+            };
         }
 
-        if (event.key !== "Tab") return;
+        if (
+            texto.includes("horario") ||
+            texto.includes("horarios")
+        ) {
 
-        const focusable = getFocusableElements();
-        if (!focusable.length) return;
+            return {
+                entendida: true,
 
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const active = root.activeElement;
-
-        if (event.shiftKey && active === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
+                texto:
+                    "Los horarios pueden variar según el curso y la modalidad. Puedo ayudarte a identificar la formación que te interesa."
+            };
         }
+
+        if (
+            texto.includes("online") ||
+            texto.includes("presencial")
+        ) {
+
+            return {
+                entendida: true,
+
+                texto:
+                    "La modalidad depende del curso y de la formación disponible en tu provincia. Podemos ayudarte a encontrar las opciones disponibles."
+            };
+        }
+
+        return {
+            entendida: false,
+
+            texto:
+                "No he podido identificar exactamente lo que necesitas."
+        };
     }
 
     /*
-     * Envía la consulta a la IA backend con animación 'Escribiendo...'
+     * "La camarera": decide de dónde salen las respuestas
+     * (archivo de prueba o IA real) y devuelve el JSON tal cual.
      */
-    async function sendQuestion() {
-        state.isLoading = true;
+    async function pedirRespuestaIA(payload) {
+
+        // Interruptor encendido: respuesta de mentira
+        if (MOCK_API) {
+
+            const archivo =
+                MOCK_SCENARIO === "fallback"
+                    ? "mock_ask_fallback.json"
+                    : "mock_ask.json";
+
+            await new Promise(
+                resolve => setTimeout(resolve, 700)
+            );
+
+            const response =
+                await fetch(MOCK_BASE + archivo);
+
+            if (!response.ok) {
+                throw new Error(
+                    `No se encontró el archivo de prueba: ${archivo}`
+                );
+            }
+
+            return response.json();
+        }
+
+        // Interruptor apagado: IA real
+        const response =
+            await fetch(
+                "/api/chat/ask/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify(payload)
+                }
+            );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                `Error HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    }
+
+    /*
+     * PUNTO DE CONEXIÓN CON LA IA
+     */
+    async function consultarIA(pregunta) {
+
+        // Sin IA: tus respuestas locales de siempre
+        if (!USAR_IA) {
+
+            await new Promise(
+                resolve => setTimeout(resolve, 700)
+            );
+
+            return respuestaLocal(pregunta);
+        }
+
+const data =
+            await pedirRespuestaIA({
+                pregunta,
+                provincia: state.provincia,
+                campo_estudio: state.campoEstudio,
+                sesion_uuid: state.sessionUuid
+            });
+
+        // Traducimos el contrato del mock/IA a las propiedades del widget
+        return {
+            entendida: 
+                data.fallback_activado !== true,
+
+            // Si el fallback está activo O requiere acción comercial, solicitamos datos
+            solicitarDatos: 
+                data.fallback_activado === true || data.requiere_accion_comercial === true,
+
+            // Lee 'respuesta' o 'texto_respuesta' por si acaso cambia la clave
+            texto: 
+                data.respuesta || data.texto_respuesta || ""
+        };
+    }
+
+    async function procesarPregunta(pregunta) {
+
+        state.loading = true;
+
         ui.send.disabled = true;
 
-        // Mostrar indicador de 3 puntos escribiendo
         showTyping();
 
         try {
-            const response = await fetch("/api/chat/ask/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    pregunta: state.pregunta,
-                    provincia: state.provincia,
-                    campo_estudio: state.campoEstudio,
-                    sesion_uuid: state.sessionUuid
-                })
-            });
 
-            const data = await response.json();
+            const respuesta =
+                await consultarIA(pregunta);
 
-            if (!response.ok) {
-                throw new Error(data.error || `Error HTTP ${response.status}`);
-            }
-
-            // Ocultar animacion 'escribiendo' antes de imprimir respuesta
             hideTyping();
 
-            if (data.texto_respuesta) {
-                addMessage(data.texto_respuesta, "bot");
+            if (respuesta.texto) {
+                addMessage(respuesta.texto);
             }
 
-            if (data.fallback_activado === true) {
-                state.fallbackActivado = true;
-                state.etapa = "lead";
+            if (respuesta.solicitarDatos === true) {
 
-                addMessage(
-                    "No he podido identificar exactamente lo que necesitas. " +
-                    "Para poder ayudarte mejor, podemos ponerte en contacto con nuestro equipo.",
-                    "bot"
-                );
-
-                addMessage(
-                    "Por favor, déjanos tus datos de contacto.",
-                    "bot"
-                );
-
-                showLeadForm();
+                showLead();
 
                 return;
             }
 
+            if (respuesta.entendida === false) {
+
+                state.fallbackIntentos++;
+
+                if (
+                    state.fallbackIntentos === 1
+                ) {
+
+                    addMessage(
+                        "Puedes explicármelo de otra forma y volveré a intentarlo."
+                    );
+
+                    ui.form.hidden = false;
+
+                    ui.question.focus();
+
+                    return;
+                }
+
+                if (
+                    state.fallbackIntentos >= 2
+                ) {
+
+                    showLead();
+
+                    return;
+                }
+            }
+
             state.fallbackIntentos = 0;
-            state.fallbackActivado = false;
+
             state.etapa = "pregunta";
+
+            ui.form.hidden = false;
 
             ui.question.focus();
 
         } catch (error) {
-            console.error("Error chatbot:", error);
-            hideTyping();
-            addMessage(
-                "No hemos podido procesar tu consulta. Inténtalo de nuevo.",
-                "bot"
+
+            console.error(
+                "Chatbot:",
+                error
             );
+
+            hideTyping();
+
+            addMessage(
+                "No hemos podido procesar tu consulta. Inténtalo de nuevo."
+            );
+
+            ui.form.hidden = false;
+
+            ui.question.focus();
+
         } finally {
-            state.isLoading = false;
+
+            state.loading = false;
+
             ui.send.disabled = false;
         }
     }
 
-        function showLeadForm() {
-            ui.form.hidden = true;
-            clearOptions();
+    function showLead() {
 
-            ui.lead.hidden = false;
+        ui.form.hidden = true;
 
-            ui.name.focus();
-        }
+        clearOptions();
+
+        addMessage(
+            "Para poder brindarte más información y ayudarte personalmente, necesitamos algunos datos de contacto."
+        );
+
+        addMessage(
+            "Por favor, indícanos tu nombre, correo electrónico y teléfono."
+        );
+
+        ui.lead.hidden = false;
+
+        ui.privacyAccept.checked = false;
+
+        ui.name.focus();
+    }
 
     async function sendLead() {
-        state.isLoading = true;
+
+        state.loading = true;
+
         ui.leadSubmit.disabled = true;
 
         showTyping();
 
         try {
-            const response = await fetch("/api/chat/lead/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    nombre: state.nombre,
-                    email: state.email,
-                    telefono: state.telefono,
-                    provincia: state.provincia,
-                    campo_estudio: state.campoEstudio,
-                    sesion_uuid: state.sessionUuid
-                })
-            });
 
-            const data = await response.json();
+            const response =
+                await fetch(
+                    "/api/chat/lead/",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+
+                            nombre:
+                                ui.name.value.trim(),
+
+                            email:
+                                ui.email.value.trim(),
+
+                            telefono:
+                                ui.phone.value.trim(),
+
+                            provincia:
+                                state.provincia,
+
+                            campo_estudio:
+                                state.campoEstudio,
+
+                            sesion_uuid:
+                                state.sessionUuid,
+
+                            consentimiento_rgpd:
+                                ui.privacyAccept.checked
+                        })
+                    }
+                );
+
+            const data =
+                await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || `Error HTTP ${response.status}`);
+
+                throw new Error(
+                    data.error ||
+                    `Error HTTP ${response.status}`
+                );
             }
 
             hideTyping();
 
-            addMessage(
-                data.mensaje ||
-                    "Gracias. He recibido tus datos. Se pondrán en contacto contigo.",
-                "bot"
-            );
-
-            state.etapa = "finalizado";
             ui.lead.hidden = true;
 
-        } catch (error) {
-            console.error("Error enviando lead:", error);
-            hideTyping();
             addMessage(
-                "No hemos podido enviar tus datos. Inténtalo de nuevo.",
-                "bot"
+                data.mensaje ||
+                "¡Gracias! Hemos recibido tus datos. Nuestro equipo se pondrá en contacto contigo para darte más información."
             );
+
+            state.finalizado = true;
+
+        } catch (error) {
+
+            console.error(
+                "Lead:",
+                error
+            );
+
+            hideTyping();
+
+            addMessage(
+                "No hemos podido enviar tus datos. Inténtalo de nuevo."
+            );
+
         } finally {
-            state.isLoading = false;
+
+            state.loading = false;
+
             ui.leadSubmit.disabled = false;
         }
     }
 
-    function handleSubmit(event) {
-        if (event) event.preventDefault();
+    ui.form.addEventListener(
+        "submit",
+        event => {
 
-        if (state.isLoading || state.etapa === "finalizado") return;
+            event.preventDefault();
 
-        const value = ui.question.value.trim();
-        if (!value) return;
+            if (
+                state.loading ||
+                state.finalizado
+            ) {
+                return;
+            }
 
-        addMessage(value, "user");
-        ui.question.value = "";
+            const pregunta =
+                ui.question.value.trim();
 
-        processTextAnswer(value);
-    }
+            if (!pregunta) return;
 
-    function handleLeadSubmit(event) {
-        event.preventDefault();
+            addMessage(
+                pregunta,
+                "user"
+            );
 
-        if (state.isLoading) return;
+            ui.question.value = "";
 
-        const nombre = ui.name.value.trim();
-        const email = ui.email.value.trim();
-        const telefono = ui.phone.value.trim();
+            procesarPregunta(pregunta);
+        }
+    );
 
-        if (!nombre || !email || !telefono) return;
+    ui.lead.addEventListener(
+        "submit",
+        event => {
 
-        state.nombre = nombre;
-        state.email = email;
-        state.telefono = telefono;
+            event.preventDefault();
 
-        addMessage(`Nombre: ${nombre}`, "user");
-        addMessage(`Email: ${email}`, "user");
-        addMessage(`Teléfono: ${telefono}`, "user");
+            if (state.loading) return;
 
-        sendLead();
-    }
+            if (
+                !ui.name.value.trim() ||
+                !ui.email.value.trim() ||
+                !ui.phone.value.trim()
+            ) {
+                return;
+            }
 
-    function init() {
-        state.sessionUuid = getSessionUuid();
+            if (!ui.privacyAccept.checked) {
+                ui.privacyAccept.focus();
+                return;
+            }
 
-        ui.toggle.addEventListener("click", open);
-        ui.close.addEventListener("click", close);
+            addMessage(
+                `Nombre: ${ui.name.value.trim()}`,
+                "user"
+            );
 
-        ui.form.addEventListener("submit", handleSubmit);
-        ui.lead.addEventListener("submit", handleLeadSubmit);
+            addMessage(
+                `Email: ${ui.email.value.trim()}`,
+                "user"
+            );
 
-        root.addEventListener("keydown", handleKeyboard);
-    }
+            addMessage(
+                `Teléfono: ${ui.phone.value.trim()}`,
+                "user"
+            );
 
-    init();
+            sendLead();
+        }
+    );
+
+    ui.toggle.addEventListener(
+        "click",
+        () => {
+
+            // Si el chat está cerrado, lo abrimos
+            if (ui.panel.hidden) {
+
+                ui.panel.hidden = false;
+
+                ui.toggle.setAttribute(
+                    "aria-expanded",
+                    "true"
+                );
+
+                // Solo iniciar la conversación si todavía no existe
+                if (!ui.messages.children.length) {
+                    start();
+                }
+
+            } else {
+
+                // Si está abierto, lo minimizamos
+                // sin borrar la conversación
+                ui.panel.hidden = true;
+
+                ui.toggle.setAttribute(
+                    "aria-expanded",
+                    "false"
+                );
+            }
+        }
+    );
+
+    ui.close.addEventListener(
+        "click",
+        () => {
+
+            ui.panel.hidden = true;
+
+            ui.toggle.setAttribute(
+                "aria-expanded",
+                "false"
+            );
+
+            ui.toggle.focus();
+        }
+    );
+
+    ui.question.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key === "Enter" &&
+                !event.shiftKey
+            ) {
+
+                event.preventDefault();
+
+                ui.form.requestSubmit();
+            }
+
+            if (event.key === "Escape") {
+
+                ui.panel.hidden = true;
+
+                ui.toggle.setAttribute(
+                    "aria-expanded",
+                    "false"
+                );
+
+                ui.toggle.focus();
+            }
+        }
+    );
+
+    state.sessionUuid = getSession();
+
 })();

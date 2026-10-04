@@ -1,0 +1,5 @@
+{
+  "texto_respuesta": "Texto de prueba del LLM simulado...",
+  "requiere_accion_comercial": false,
+  "fallback_activado": false
+}
