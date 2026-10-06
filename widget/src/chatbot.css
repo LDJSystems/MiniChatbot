@@ -1,6 +1,34 @@
+/* ==========================================================
+   PALETA DE COLORES  ←  AQUÍ SE CAMBIAN TODOS LOS COLORES
+   ----------------------------------------------------------
+   Para probar otra opción (B, C, D) solo hay que tocar este
+   bloque. El resto del archivo usa var(--cb-...).
+   Después: npm run build
+   ========================================================== */
+
 :host {
     all: initial;
     font-family: Arial, Helvetica, sans-serif;
+
+    /* Marca CEFYE */
+    --cb-primary:       #79229f;  /* morado: cabecera, botón flotante, mensajes del usuario, botones */
+    --cb-primary-dark:  #653a77;  /* morado oscuro: hover */
+    --cb-accent:        #f2a916;  /* naranja: foco de teclado y detalles */
+    --cb-accent-dark:   #653a77;  /* naranja oscuro: hover del acento */
+
+    /* Texto sobre los colores de marca */
+    --cb-on-primary:    #ffffff;  /* texto sobre morado */
+    --cb-on-accent:     #2e2e2e;  /* texto sobre naranja (el blanco no contrasta) */
+
+    /* Superficies y texto */
+    --cb-bg:            #ffffff;  /* fondo del panel y de los campos */
+    --cb-bot-bg:        #dee0e7;  /* burbuja del bot y "escribiendo..." */
+    --cb-bot-text:      #2e2e2e;
+    --cb-text:          #2e2e2e;
+    --cb-muted:         #757783;  /* etiquetas del formulario */
+    --cb-border:        #dee0e7;  /* bordes y líneas */
+    --cb-disabled:      #b5b8c2;  /* botón desactivado */
+    --cb-dots:          #804a96;  /* puntos de "escribiendo..." */
 }
 
 /* ================================
@@ -33,8 +61,8 @@
     border: 0;
     border-radius: 50%;
 
-    background: #1d4ed8;
-    color: #fff;
+    background: var(--cb-primary);
+    color: var(--cb-on-primary);
 
     cursor: pointer;
     font-size: 16px;
@@ -48,7 +76,7 @@
 }
 
 .chatbot-button:hover {
-    background: #1e40af;
+    background: var(--cb-primary-dark);
     transform: scale(1.05);
 }
 
@@ -63,7 +91,7 @@
 button:focus-visible,
 textarea:focus-visible,
 input:focus-visible {
-    outline: 3px solid #f59e0b;
+    outline: 3px solid var(--cb-accent);
     outline-offset: 2px;
 }
 
@@ -85,10 +113,10 @@ input:focus-visible {
 
     overflow: hidden;
 
-    background: #fff;
-    color: #222;
+    background: var(--cb-bg);
+    color: var(--cb-text);
 
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--cb-border);
     border-radius: 16px;
 
     box-shadow: 0 8px 35px rgba(0, 0, 0, 0.25);
@@ -107,8 +135,8 @@ input:focus-visible {
 
     padding: 14px 16px;
 
-    background: #1d4ed8;
-    color: #fff;
+    background: var(--cb-primary);
+    color: var(--cb-on-primary);
 }
 
 .chatbot-header h2 {
@@ -132,7 +160,7 @@ input:focus-visible {
     border-radius: 50%;
 
     background: transparent;
-    color: #fff;
+    color: var(--cb-on-primary);
 
     cursor: pointer;
     font-size: 26px;
@@ -168,7 +196,7 @@ input:focus-visible {
 }
 
 .chatbot-messages::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--cb-border);
     border-radius: 3px;
 }
 
@@ -198,8 +226,8 @@ input:focus-visible {
 .chatbot-message--bot {
     margin-right: auto;
 
-    background: #f1f5f9;
-    color: #1e293b;
+    background: var(--cb-bot-bg);
+    color: var(--cb-bot-text);
 
     border-bottom-left-radius: 2px;
 }
@@ -207,8 +235,8 @@ input:focus-visible {
 .chatbot-message--user {
     margin-left: auto;
 
-    background: #1d4ed8;
-    color: #fff;
+    background: var(--cb-primary);
+    color: var(--cb-on-primary);
 
     border-bottom-right-radius: 2px;
 }
@@ -232,11 +260,11 @@ input:focus-visible {
 .chatbot-option {
     padding: 8px 14px;
 
-    border: 1px solid #1d4ed8;
+    border: 1px solid var(--cb-primary);
     border-radius: 20px;
 
-    background: #fff;
-    color: #1d4ed8;
+    background: var(--cb-bg);
+    color: var(--cb-primary);
 
     cursor: pointer;
 
@@ -249,8 +277,8 @@ input:focus-visible {
 }
 
 .chatbot-option:hover {
-    background: #1d4ed8;
-    color: #fff;
+    background: var(--cb-primary);
+    color: var(--cb-on-primary);
 }
 
 /* ================================
@@ -265,9 +293,9 @@ input:focus-visible {
 
     padding: 12px;
 
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--cb-border);
 
-    background: #fff;
+    background: var(--cb-bg);
 }
 
 .chatbot-form textarea {
@@ -279,11 +307,11 @@ input:focus-visible {
 
     padding: 10px;
 
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--cb-border);
     border-radius: 8px;
 
-    background: #fff;
-    color: #222;
+    background: var(--cb-bg);
+    color: var(--cb-text);
 
     font: inherit;
     font-size: 14px;
@@ -300,8 +328,8 @@ input:focus-visible {
     border: 0;
     border-radius: 8px;
 
-    background: #1d4ed8;
-    color: #fff;
+    background: var(--cb-primary);
+    color: var(--cb-on-primary);
 
     cursor: pointer;
 
@@ -313,12 +341,12 @@ input:focus-visible {
 
 .chatbot-send:hover,
 .chatbot-lead button:hover {
-    background: #1e40af;
+    background: var(--cb-primary-dark);
 }
 
 .chatbot-send:disabled,
 .chatbot-lead button:disabled {
-    background: #94a3b8;
+    background: var(--cb-disabled);
     cursor: not-allowed;
 }
 
@@ -335,11 +363,11 @@ input:focus-visible {
 
     padding: 14px 16px 16px;
 
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--cb-border);
 }
 
 .chatbot-lead label {
-    color: #475569;
+    color: var(--cb-muted);
 
     font-size: 12px;
     font-weight: 600;
@@ -350,14 +378,64 @@ input:focus-visible {
 
     padding: 9px 12px;
 
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--cb-border);
     border-radius: 8px;
 
-    background: #fff;
-    color: #222;
+    background: var(--cb-bg);
+    color: var(--cb-text);
 
     font: inherit;
     font-size: 14px;
+}
+
+/* ================================
+   POLÍTICA DE PRIVACIDAD
+   (estaba en el CSS antiguo de chatbot.js y faltaba aquí)
+   ================================ */
+
+.chatbot-privacy {
+    padding: 8px;
+
+    border-radius: 6px;
+
+    background: var(--cb-bot-bg);
+    color: var(--cb-text);
+
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.chatbot-privacy strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.chatbot-privacy p {
+    margin: 0 0 6px;
+}
+
+.chatbot-privacy p:last-child {
+    margin-bottom: 0;
+}
+
+.chatbot-privacy-link {
+    color: var(--cb-primary);
+    text-decoration: underline;
+}
+
+.chatbot-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.chatbot-checkbox input {
+    width: auto;
+    margin-top: 2px;
+    flex: 0 0 auto;
 }
 
 /* ================================
@@ -379,7 +457,7 @@ input:focus-visible {
     border-radius: 12px;
     border-bottom-left-radius: 2px;
 
-    background: #f1f5f9;
+    background: var(--cb-bot-bg);
 }
 
 .chatbot-typing span {
@@ -390,7 +468,7 @@ input:focus-visible {
 
     border-radius: 50%;
 
-    background: #64748b;
+    background: var(--cb-dots);
 
     animation: chatbot-dots 1.4s infinite ease-in-out both;
 }
