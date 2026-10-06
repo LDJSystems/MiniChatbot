@@ -27,7 +27,12 @@ class ChatbotKnowledgeService:
             .annotate(rank=SearchRank('vector_busqueda', query))
             .order_by('-rank')[:limite]
         )
-        return "\n\n".join(r.contenido for r in resultados)
+        
+        # FIX: Añadir provincia y url_oficial al bloque de texto
+        return "\n\n".join(
+            f"{r.titulo}\n{r.contenido}\nProvincia: {r.provincia}\nURL: {r.url_oficial}" 
+            for r in resultados
+        )
 
 
 # ── Servicio de promoción staging → BaseConocimiento ─────────────────────────
@@ -53,8 +58,8 @@ def promover_staging(queryset=None) -> dict:
         try:
             with transaction.atomic():
                 BaseConocimiento.objects.update_or_create(
-                    url_oficial=curso.url_origen,
-                    defaults={
+                    url_oficial=curso.url_oficial,
+                        defaults={
                         'titulo':        curso.titulo_raw,
                         'contenido':     curso.contenido_raw or '',
                         'provincia':     curso.provincia_raw or 'N/D',
