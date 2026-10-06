@@ -427,8 +427,7 @@
                 <input
                     id="chatbot-email"
                     type="email"
-                    autocomplete="email"
-                    required>
+                    autocomplete="email">
 
                 <label for="chatbot-phone">
                     Teléfono
@@ -437,7 +436,16 @@
                 <input
                     id="chatbot-phone"
                     type="tel"
-                    autocomplete="tel"
+                    autocomplete="tel">
+
+                <label for="chatbot-colectivo">
+                    Colectivo
+                </label>
+
+                <input
+                    id="chatbot-colectivo"
+                    type="text"
+                    autocomplete="organization-title"
                     required>
 
                 <button
@@ -480,6 +488,7 @@
         name: $("chatbot-name"),
         email: $("chatbot-email"),
         phone: $("chatbot-phone"),
+        colectivo: $("chatbot-colectivo"),
         leadSubmit: $("chatbot-lead-submit")
     };
 
@@ -600,6 +609,10 @@
         ui.lead.hidden = true;
 
         ui.privacyAccept.checked = false;
+        ui.name.value = "";
+        ui.email.value = "";
+        ui.phone.value = "";
+        ui.colectivo.value = "";
 
         addMessage(
             `👋 ¡Bienvenido al chat de CEFYE!
@@ -914,7 +927,7 @@ const data =
         );
 
         addMessage(
-            "Por favor, indícanos tu nombre, correo electrónico y teléfono."
+            "Por favor, indícanos tu nombre, al menos un medio de contacto (correo o teléfono) y tu colectivo."
         );
 
         ui.lead.hidden = false;
@@ -922,6 +935,58 @@ const data =
         ui.privacyAccept.checked = false;
 
         ui.name.focus();
+    }
+
+    async function enviarLead(payload) {
+
+        // En desarrollo podemos probar el contrato completo
+        // sin depender todavía del backend de Dev A.
+        if (MOCK_API) {
+
+            await new Promise(
+                resolve => setTimeout(resolve, 700)
+            );
+
+            const response =
+                await fetch(
+                    MOCK_BASE + "mock_lead.json"
+                );
+
+            if (!response.ok) {
+                throw new Error(
+                    "No se encontró el mock del envío de lead."
+                );
+            }
+
+            return response.json();
+        }
+
+        const response =
+            await fetch(
+                "/api/chat/lead/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify(payload)
+                }
+            );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error ||
+                `Error HTTP ${response.status}`
+            );
+        }
+
+        return data;
     }
 
     async function sendLead() {
@@ -934,53 +999,34 @@ const data =
 
         try {
 
-            const response =
-                await fetch(
-                    "/api/chat/lead/",
-                    {
-                        method: "POST",
+            const payload = {
+                nombre:
+                    ui.name.value.trim(),
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
+                email:
+                    ui.email.value.trim(),
 
-                        body: JSON.stringify({
+                telefono:
+                    ui.phone.value.trim(),
 
-                            nombre:
-                                ui.name.value.trim(),
+                provincia:
+                    state.provincia,
 
-                            email:
-                                ui.email.value.trim(),
+                campo_estudio:
+                    state.campoEstudio,
 
-                            telefono:
-                                ui.phone.value.trim(),
+                colectivo:
+                    ui.colectivo.value.trim(),
 
-                            provincia:
-                                state.provincia,
+                sesion_uuid:
+                    state.sessionUuid,
 
-                            campo_estudio:
-                                state.campoEstudio,
-
-                            sesion_uuid:
-                                state.sessionUuid,
-
-                            consentimiento_rgpd:
-                                ui.privacyAccept.checked
-                        })
-                    }
-                );
+                consentimiento_rgpd:
+                    ui.privacyAccept.checked
+            };
 
             const data =
-                await response.json();
-
-            if (!response.ok) {
-
-                throw new Error(
-                    data.error ||
-                    `Error HTTP ${response.status}`
-                );
-            }
+                await enviarLead(payload);
 
             hideTyping();
 
@@ -1051,11 +1097,23 @@ const data =
 
             if (state.loading) return;
 
-            if (
-                !ui.name.value.trim() ||
-                !ui.email.value.trim() ||
-                !ui.phone.value.trim()
-            ) {
+            const nombre = ui.name.value.trim();
+            const email = ui.email.value.trim();
+            const telefono = ui.phone.value.trim();
+            const colectivo = ui.colectivo.value.trim();
+
+            if (!nombre || !colectivo) {
+                if (!nombre) ui.name.focus();
+                else ui.colectivo.focus();
+                return;
+            }
+
+            // Contrato: email requerido si no hay teléfono y viceversa.
+            if (!email && !telefono) {
+                ui.email.focus();
+                addMessage(
+                    "Indica al menos un medio de contacto: correo electrónico o teléfono."
+                );
                 return;
             }
 
@@ -1069,13 +1127,22 @@ const data =
                 "user"
             );
 
-            addMessage(
-                `Email: ${ui.email.value.trim()}`,
-                "user"
-            );
+            if (email) {
+                addMessage(
+                    `Email: ${email}`,
+                    "user"
+                );
+            }
+
+            if (telefono) {
+                addMessage(
+                    `Teléfono: ${telefono}`,
+                    "user"
+                );
+            }
 
             addMessage(
-                `Teléfono: ${ui.phone.value.trim()}`,
+                `Colectivo: ${colectivo}`,
                 "user"
             );
 
