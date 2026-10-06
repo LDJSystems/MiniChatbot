@@ -15,6 +15,8 @@ class Migration(migrations.Migration):
             name='texto_consulta',
             field=models.TextField(default=''),
         ),
+        
+
         migrations.AlterField(
             model_name='consultafallida',
             name='motivo_fallo',

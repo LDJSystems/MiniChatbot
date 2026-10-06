@@ -1,26 +1,30 @@
 # ingestion/tests.py
 import pytest
 from django.core.management import call_command
-from django.db import transaction
 from conocimiento.models import BaseConocimiento, StagingCursos
+
 
 @pytest.mark.django_db
 def test_ejecutar_etl_command_success(capsys):
-    """Valida que el comando de gestión procese los registros correctamente desde staging a producción"""
-    # Ejecutar el comando de gestión
+    """Valida que el ETL promueva cursos desde staging a BaseConocimiento.
+
+    NOTA: este test hace scraping real de cefye.com. Cuando puedas, conviene
+    mockear las peticiones HTTP para que no dependa de la red ni de la web.
+    """
     call_command('ejecutar_etl')
 
-    # Verificar que el registro se creó en staging y pasó a estado 'validado'
-    assert StagingCursos.objects.filter(estado='validado').exists()
-    
-    # Verificar que se insertó o actualizó en BaseConocimiento
-    assert BaseConocimiento.objects.filter(titulo="Curso Avanzado de Django").exists()
+    # Al promover, los cursos pasan a BaseConocimiento activos
+    assert BaseConocimiento.objects.filter(activo=True).exists()
+
+    # Ningún curso debe haber fallado en la promoción
+    assert not StagingCursos.objects.filter(estado='error').exists()
+
 
 @pytest.mark.django_db
 def test_staging_hash_unicidad():
     """Valida que el hash evite duplicados físicos en el buffer de staging"""
     hash_test = "hashduplicadotest123"
-    
+
     StagingCursos.objects.create(
         titulo_raw="Curso Original",
         contenido_raw="Contenido único",

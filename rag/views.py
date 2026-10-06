@@ -1,132 +1,61 @@
+# rag/views.py
 import logging
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django_ratelimit.decorators import ratelimit
-from django.db.models import F
-from django.db import IntegrityError
+from celery.result import AsyncResult
 
 from .serializers import ChatRequestSerializer
-from telemetry.models import ConsultaFallida, ContadorDemanda
-from rag.retriever import recuperar_cursos
-from rag.generator import generar_respuesta_ia
-from chat.services import ChatSessionService
+from .tasks import procesar_chat_ia_task
 
 logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @ratelimit(key='ip', rate='5/m', block=False)
 def chat_ask_view(request):
+    """
+    Endpoint asíncrono: Valida la entrada y deriva la inferencia de IA a Celery,
+    liberando instantáneamente el worker de Gunicorn.
+    """
     if getattr(request, 'limited', False):
         return Response(
             {"error": "Demasiadas solicitudes. Has superado el límite de 5 peticiones por minuto."},
             status=status.HTTP_429_TOO_MANY_REQUESTS
         )
 
-    # 1. Validación estricta con DRF (Fase 4.2)
-    # is_valid(raise_exception=True) detiene la ejecución y devuelve un HTTP 400 estándar
-    # si la pregunta está vacía, excede 1000 caracteres o 'filtros' no es un dict.
+    # 1. Validación estricta con DRF
     serializer = ChatRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True) 
     
     pregunta = serializer.validated_data['pregunta']
     filtros = serializer.validated_data.get('filtros', {})
-    
-    # sesion_uuid es opcional, lo extraemos del payload original
     sesion_uuid = request.data.get('sesion_uuid')
 
-    try:
-        # 2. Gestionar sesión
-        sesion = ChatSessionService.obtener_o_crear_sesion(sesion_uuid, filtros)
+    # 2. Despacho inmediato a la cola de Redis (Cero bloqueo HTTP)
+    task = procesar_chat_ia_task.delay(pregunta, filtros, sesion_uuid)
 
-        # 3. Recuperación de contexto
-        resultados = recuperar_cursos(pregunta, filtros)
+    return Response({
+        "mensaje": "Consulta en proceso",
+        "task_id": task.id
+    }, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(['GET'])
+def chat_status_view(request, task_id):
+    """
+    Endpoint de polling para que el cliente consulte el estado de la inferencia en Redis.
+    """
+    tarea = AsyncResult(task_id)
+    
+    respuesta = {
+        "task_id": task_id,
+        "estado": tarea.status  # PENDING, STARTED, SUCCESS, FAILURE
+    }
+    
+    if tarea.status == 'SUCCESS':
+        respuesta["resultado"] = tarea.result
+    elif tarea.status == 'FAILURE':
+        respuesta["error"] = "Error interno ejecutando la inferencia de la IA o timeout en el worker."
         
-        # --- CORTOCIRCUITO LÓGICO ---
-        if not resultados:
-            logger.info(f"[Escalado] Cero resultados para: '{pregunta}'. Derivando a agente.")
-            
-            _registrar_fallo(pregunta, 'sin_resultados')
-            
-            resultado_escalado = {
-                "texto_respuesta": "No he encontrado formación exacta para tu consulta en este momento. ¿Deseas que un orientador de nuestro equipo contacte contigo para analizar tu caso en detalle?",
-                "requiere_accion": "ESCALADO_AGENTE",
-                "contexto_busqueda": pregunta
-            }
-            
-            ChatSessionService.guardar_intercambio(sesion, pregunta, resultado_escalado)
-            
-            return Response({
-                "sesion_uuid": str(sesion.uuid),
-                **resultado_escalado
-            }, status=status.HTTP_200_OK)
-        # -----------------------------
-
-        # Protección contra desbordamiento: acotamos el bloque principal para el LLM
-        resultados_para_ia = resultados
-        es_listado_masivo = len(resultados) > 10
-        if es_listado_masivo:
-            resultados_para_ia = resultados[:10]
-
-        # 4. Generación LLM
-        resultado_ia = generar_respuesta_ia(pregunta, resultados_para_ia)
-
-        if es_listado_masivo and "texto_respuesta" in resultado_ia:
-            resultado_ia["texto_respuesta"] += f"\n\n*(Mostrando los primeros 10 resultados de un total de {len(resultados)} encontrados en la provincia).* "
-
-        # 5. Persistencia del intercambio
-        ChatSessionService.guardar_intercambio(sesion, pregunta, resultado_ia)
-
-        # 6. Registro de Telemetría (Demanda)
-        _registrar_demanda(resultados_para_ia)
-
-        respuesta_final = {
-            "sesion_uuid": str(sesion.uuid),
-            **resultado_ia
-        }
-
-        return Response(respuesta_final, status=status.HTTP_200_OK)
-
-    except TimeoutError:
-        _registrar_fallo(pregunta, 'timeout')
-        return Response({"error": "El servicio de IA está saturado."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        
-    except Exception as e:
-        logger.error(f"Error procesando la consulta: {str(e)}")
-        _registrar_fallo(pregunta, 'error_llm')
-        return Response({"error": "Error interno procesando la consulta."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-def _registrar_fallo(query: str, motivo: str):
-    """Guarda silenciosamente el fallo sin tumbar la respuesta HTTP."""
-    try:
-        ConsultaFallida.objects.create(texto_consulta=query, motivo_fallo=motivo)
-    except Exception as e:
-        logger.error(f"Fallo de BD al guardar ConsultaFallida: {e}")
-
-def _registrar_demanda(resultados):
-    """Incremento atómico de demanda tolerante a condiciones de carrera."""
-    try:
-        for r in resultados:
-            curso_id = getattr(r, 'id', None)
-            provincia = getattr(r, 'provincia', 'N/D')
-            
-            if not curso_id:
-                continue
-                
-            updated = ContadorDemanda.objects.filter(
-                base_conocimiento_id=curso_id
-            ).update(demanda=F('demanda') + 1)
-            
-            if not updated:
-                try:
-                    ContadorDemanda.objects.create(
-                        base_conocimiento_id=curso_id,
-                        provincia=provincia,
-                        demanda=1
-                    )
-                except IntegrityError:
-                    ContadorDemanda.objects.filter(
-                        base_conocimiento_id=curso_id
-                    ).update(demanda=F('demanda') + 1)
-    except Exception as e:
-        logger.error(f"Fallo de BD al guardar ContadorDemanda: {e}")
+    return Response(respuesta, status=status.HTTP_200_OK)

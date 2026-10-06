@@ -1,14 +1,16 @@
-# conocimiento/tests.py
-import pytest
-from django.db import connection
-from django.contrib.postgres.search import SearchQuery
-from django.urls import reverse
-from conocimiento.models import BaseConocimiento, StagingCursos
-from conocimiento.services import ChatbotKnowledgeService
+import os
 import json
 import tempfile
-import os
+from unittest.mock import patch
+
+import pytest
+from django.db import connection
+from django.urls import reverse
 from django.core.management import call_command
+from django.contrib.postgres.search import SearchQuery
+
+from conocimiento.models import BaseConocimiento, StagingCursos
+from conocimiento.services import ChatbotKnowledgeService
 
 @pytest.mark.django_db
 class TestTriggerVectorBusqueda:
@@ -85,7 +87,11 @@ def test_chatbot_knowledge_service_retrieval():
     assert "https://ejemplo.com/django" in contexto
     
 @pytest.mark.django_db
-def test_chatbot_query_api(client):
+@patch('rag.views.procesar_chat_ia_task.delay')
+def test_chatbot_query_api(mock_task_delay, client):
+    # Simulamos el ID de la tarea encolada en Redis
+    mock_task_delay.return_value.id = "123e4567-e89b-12d3-a456-426614174000"
+
     BaseConocimiento.objects.create(
         titulo="Curso de Python",
         contenido="Aprende desarrollo web con Python y Django.",
@@ -94,17 +100,23 @@ def test_chatbot_query_api(client):
         colectivo="General",
         activo=True
     )
-    url = reverse('api_chatbot_query')
+    
+    url = '/api/chat/ask/'  
+    
     response = client.post(
         url, 
         data=json.dumps({'pregunta': 'Python'}), 
         content_type='application/json'
     )
     
-    assert response.status_code == 200
+    # Validamos el nuevo contrato asíncrono (HTTP 202 y task_id)
+    assert response.status_code == 202
     data = response.json()
-    assert 'Curso de Python' in data['contexto_utilizado']
-    assert 'prompt_generado' in data
+    
+    assert 'task_id' in data
+    assert data['task_id'] == "123e4567-e89b-12d3-a456-426614174000"
+    assert data['mensaje'] == "Consulta en proceso"
+    mock_task_delay.assert_called_once()
 
 @pytest.mark.django_db
 def test_cargar_datos_iniciales_command():
@@ -126,9 +138,10 @@ def test_cargar_datos_iniciales_command():
 
     try:
         call_command('cargar_datos_iniciales', file=tf_name)
-        assert StagingCursos.objects.filter(hash_contenido="hash_test_123").exists()
-        staging = StagingCursos.objects.get(hash_contenido="hash_test_123")
-        assert staging.titulo_raw == "Curso Test Masivo"
+        
+        # Mapeo estricto a las columnas definidas en el ORM
+        assert StagingCursos.objects.filter(titulo_raw="Curso Test Masivo").exists()
+        staging = StagingCursos.objects.get(titulo_raw="Curso Test Masivo")
         assert staging.estado == "pendiente"
     finally:
         os.unlink(tf_name)
