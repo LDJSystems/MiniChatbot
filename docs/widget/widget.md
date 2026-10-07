@@ -1,157 +1,139 @@
-# Documentación funcional: app `widget`
+# Manual del widget de chatbot (CEFYE)
 
-**Proyecto:** Chatbot de orientación formativa
-**Componente:** Cliente / Frontend puro (Vanilla JS + CSS encapsulado)
-**Archivo fuente:** `widget/chatbot.js` → **salida:** `widget/build/chatbot.min.js`
-**Estado:** Fase de perfilado funcional; integración de IA pendiente
+Guía para el programador que herede, ejecute o integre este widget. Explica **cómo se ejecuta**, **por qué está hecho así** y **qué falta o está desalineado** en el estado actual del código.
 
 ---
 
-## 1. Resumen
+## 1. Qué es
 
-El widget es un chatbot embebible que se muestra como un botón flotante en la esquina inferior derecha de la página. Al pulsarlo se despliega un panel de conversación que:
+Un widget de chat embebible en cualquier web: botón flotante abajo a la derecha que abre un panel de conversación. Está escrito en **JavaScript puro (sin frameworks)** y se entrega como **un único archivo**: `build/chatbot.min.js`.
 
-1. Da un mensaje de bienvenida.
-2. Perfila al usuario mediante preguntas con botones (provincia, curso, situación laboral, experiencia y objetivo).
-3. Abre una caja de texto libre para que el usuario formule su consulta, que se envía al backend (`/api/chat/ask/`).
-4. Si el backend no entiende la consulta de forma reiterada, muestra un formulario de contacto que envía un lead a `/api/chat/lead/`.
+Flujo funcional:
 
-No usa frameworks ni dependencias externas.
-
----
-
-## 2. Arquitectura
-
-| Aspecto | Implementación |
-|---|---|
-| Lenguaje | JavaScript vanilla, sin frameworks |
-| Aislamiento de variables | IIFE `(function () { "use strict"; ... })();` |
-| Aislamiento de estilos y DOM | Shadow DOM (`attachShadow({ mode: "open" })`) sobre un contenedor `#chatbot-widget` |
-| CSS | Encapsulado dentro del Shadow DOM mediante la constante `STYLES`, inyectada en una etiqueta `<style>` de la plantilla |
-| Salida | Un único archivo `widget/build/chatbot.min.js` |
-| Integración | `<script async src=".../chatbot.min.js"></script>` antes del cierre de `</body>` |
-
-**Creación del contenedor.** Al cargarse, el script busca un elemento con id `chatbot-widget`. Si no existe, lo crea y lo añade al `body`. Después crea (o reutiliza) su Shadow Root y renderiza la plantilla (`TEMPLATE`).
-
-**Aislamiento.** Ni los estilos de la página anfitriona afectan al widget, ni los del widget a la página. Ninguna variable queda expuesta en el ámbito global.
+1. El usuario abre el panel → mensaje de bienvenida.
+2. Perfilado con botones: **provincia** → **área formativa**.
+3. Aparece una caja de texto para preguntar.
+4. Cada pregunta se envía a la IA (`/api/chat/ask/`) o a un mock.
+5. Si la IA no sabe (`fallback_activado: true`) o hay oportunidad comercial (`requiere_accion_comercial: true`), se oculta la caja de texto y se muestra el **formulario de lead**, que se envía a `/api/chat/lead/`.
 
 ---
 
-## 3. Estructura de la interfaz
+## 2. Estructura del proyecto
 
-Elementos de la plantilla, referenciados en el objeto `ui`:
+```
+widget/
+├── src/
+│   ├── chatbot.js        ← FUENTE REAL del widget (HTML + CSS + lógica)
+│   └── chatbot.css       ← CSS aparte (ver §8, hoy NO se usa)
+├── static/
+│   ├── mock_ask.json            ← respuesta normal simulada de /api/chat/ask/
+│   ├── mock_ask_fallback.json   ← respuesta con fallback_activado: true
+│   └── mock_lead.json           ← respuesta simulada de /api/chat/lead/
+├── build/
+│   └── chatbot.min.js    ← artefacto final que se incluye en la web
+├── build.mjs             ← script de build (esbuild)
+├── package.json          ← solo esbuild como devDependency
+├── test.html             ← página mínima de pruebas
+└── README.md             ← resumen rápido de interruptores y contrato de lead
+```
 
-| Elemento | ID | Función |
+`node_modules/` no se versiona; se regenera con `npm ci`.
+
+---
+
+## 3. Cómo ejecutarlo
+
+### 3.1 Probar rápido en local
+
+**Importante:** no abras `test.html` con doble clic (`file://`). Los mocks se piden con `fetch("/static/...")`, una ruta absoluta que necesita un servidor HTTP.
+
+Desde la carpeta `widget/`:
+
+```bash
+python3 -m http.server 8000
+# o: npx http-server -p 8000
+```
+
+Abre `http://localhost:8000/test.html`. Como el servidor cuelga de `widget/`, la ruta `/static/mock_ask.json` resuelve a `widget/static/mock_ask.json` y los mocks funcionan.
+
+### 3.2 Regenerar el build
+
+```bash
+cd widget
+npm ci
+npm run build      # genera build/chatbot.min.js
+```
+
+`test.html` carga `./build/chatbot.min.js`, así que **cualquier cambio en `src/` exige volver a ejecutar el build** para verlo.
+
+> Nota: el `build/chatbot.min.js` que viene en el ZIP es una copia **idéntica, sin minificar** del fuente (así se puede probar sin instalar nada). `npm run build` lo sustituye por la versión minificada.
+
+### 3.3 Integrarlo en la web real
+
+Una sola línea antes de `</body>`:
+
+```html
+<script async src="/static/chatbot.min.js"></script>
+```
+
+(Ajusta la ruta a donde Django sirva el archivo.) El script se autoejecuta, crea su propio contenedor y no necesita nada más.
+
+---
+
+## 4. Interruptores de entorno (en `src/chatbot.js`, líneas ~11-30)
+
+| Constante | Valor | Efecto |
 |---|---|---|
-| Botón flotante | `chatbot-toggle` | Abre el chatbot. Usa `aria-expanded` y `aria-controls` |
-| Panel | `chatbot-panel` | Contenedor con `role="dialog"` y `aria-modal="true"`; oculto por defecto |
-| Botón de cierre | `chatbot-close` | Cierra el panel |
-| Zona de mensajes | `chatbot-messages` | Historial de la conversación (`aria-live="polite"`) |
-| Zona de opciones | `chatbot-options` | Botones de respuesta del perfilado (`role="group"`) |
-| Formulario de pregunta | `chatbot-form` | Textarea (`chatbot-question`) y botón de envío (`chatbot-send`) |
-| Formulario de lead | `chatbot-lead` | Campos nombre, email, teléfono y botón `chatbot-lead-submit` |
+| `USAR_IA` | `false` | Chat **sin IA**: respuestas locales por palabras clave (`respuestaLocal`). |
+| `USAR_IA` | `true` | Usa el contrato de `/api/chat/ask/` (real o mock según `MOCK_API`). |
+| `MOCK_API` | `true` | `ask` y `lead` se sirven desde los JSON de `static/`. Sin backend. |
+| `MOCK_API` | `false` | Llamadas reales con `fetch` POST a `/api/chat/ask/` y `/api/chat/lead/`. |
+| `MOCK_SCENARIO` | `"ok"` | Con mock, responde `mock_ask.json` (conversación normal). |
+| `MOCK_SCENARIO` | `"fallback"` | Con mock, responde `mock_ask_fallback.json` → aparece el formulario de lead. |
+| `MOCK_BASE` | `"/static/"` | Carpeta desde la que se piden los mocks. |
 
-Los mensajes se pintan como párrafos con las clases `chatbot-message--bot` y `chatbot-message--user`. Se usa `textContent`, por lo que el contenido nunca se interpreta como HTML (previene XSS).
+**Estado en el ZIP:** `USAR_IA = true`, `MOCK_API = true`, `MOCK_SCENARIO = "ok"`.
+⚠️ **Antes de desplegar a producción hay que poner `MOCK_API = false`**, o el widget seguirá devolviendo "Texto de prueba del LLM simulado...".
 
----
+Receta de pruebas:
 
-## 4. Estado de la aplicación (`state`)
-
-| Campo | Descripción |
+| Quiero probar… | Configuración |
 |---|---|
-| `isOpen` | Si el panel está abierto |
-| `isLoading` | Si hay una petición en curso (bloquea envíos duplicados) |
-| `sessionUuid` | UUID de la sesión actual |
-| `etapa` | Etapa actual del flujo (ver sección 5) |
-| `provincia`, `campoEstudio`, `colectivo`, `experienciaProfesional`, `objetivo` | Respuestas del perfilado |
-| `pregunta` | Última consulta escrita por el usuario |
-| `nombre`, `email`, `telefono` | Datos del formulario de contacto |
-| `fallbackActivado` | Si se ha llegado al fallback definitivo |
-| `fallbackIntentos` | Contador de consultas no entendidas (0, 1 o 2) |
+| Perfilado + chat sin backend ni IA | `USAR_IA=false` |
+| Conversación con mock | `USAR_IA=true, MOCK_API=true, MOCK_SCENARIO="ok"` |
+| Formulario de leads | `USAR_IA=true, MOCK_API=true, MOCK_SCENARIO="fallback"` |
+| Integración real con Django | `USAR_IA=true, MOCK_API=false` |
 
 ---
 
-## 5. Flujo conversacional
+## 5. Contratos de API
 
-El flujo se define en la tabla `FLOW`. Cada etapa indica el texto del bot, las opciones (o texto libre), el campo del estado donde se guarda la respuesta y la etapa siguiente.
+### `POST /api/chat/ask/`
 
-| # | Etapa | Pregunta del bot | Tipo | Opciones | Campo |
-|---|---|---|---|---|---|
-| 1 | `provincia` | ¿En qué provincia estás? | Botones | Salamanca, Ávila, Segovia, Valladolid, Zamora, León, Palencia, Burgos, Soria | `provincia` |
-| 2 | `campo_estudio` | ¿Qué curso estás buscando? | Botones | Administración y gestión, Comercio y marketing, Informática y comunicaciones, Sanidad, Otro | `campoEstudio` |
-| 3 | `colectivo` | ¿En este momento estás trabajando? | Botones | Sí, No | `colectivo` |
-| 4 | `experiencia` | ¿En qué tipo de trabajo o área profesional tienes más experiencia? | Botones | Administración, Comercio, Atención al cliente, Informática, Sanidad, Educación, Industria, Hostelería, Construcción, Transporte, Otro | `experienciaProfesional` |
-| 5 | `objetivo` | ¿Qué te gustaría conseguir con esta formación? | Botones | Mejorar en mi trabajo, Cambiar de sector, Encontrar empleo, Otro | `objetivo` |
-| 6 | `pregunta` | Gracias, ya tengo lo básico. Cuéntame, ¿en qué puedo ayudarte? | Texto libre | — | `pregunta` |
-
-**Mecánica de una respuesta con botones:**
-
-1. El usuario pulsa una opción (`selectOption`).
-2. Se limpian las opciones y se muestra su respuesta como mensaje de usuario.
-3. `processOptionAnswer` guarda el valor en el campo correspondiente y avanza a la etapa siguiente.
-4. `askNextQuestion` muestra la siguiente pregunta y sus botones.
-
-Mientras hay botones visibles, la caja de texto permanece oculta. Al llegar a la etapa `pregunta` se oculta la zona de opciones y se muestra la caja de texto.
-
----
-
-## 6. Ciclo de vida del chatbot
-
-### Apertura (`open`)
-Al pulsar el botón flotante: marca el panel como abierto, lo muestra, actualiza `aria-expanded` y ejecuta `resetConversation()`.
-
-### Reinicio (`resetConversation`)
-Cada apertura comienza una conversación nueva:
-
-- Borra todos los mensajes, las opciones y los campos de texto.
-- Oculta ambos formularios.
-- Restablece el estado completo (etapa `provincia`, respuestas a `null`, `fallbackIntentos = 0`).
-- Genera un UUID de sesión nuevo.
-- Muestra el mensaje de bienvenida y lanza la primera pregunta.
-
-### Cierre (`close`)
-Oculta el panel, actualiza `aria-expanded` y devuelve el foco al botón flotante. **No borra la conversación**; el borrado se produce al volver a abrir.
-
-### Sesión
-- Clave en `sessionStorage`: `chatbot_session_uuid`.
-- Se genera con `crypto.randomUUID()`; si no está disponible, se usa un identificador alternativo basado en la fecha y un número aleatorio.
-- Se envía como `sesion_uuid` en todas las llamadas al backend para vincular consulta, perfil y lead.
-
----
-
-## 7. Integración con el backend
-
-### 7.1 `POST /api/chat/ask/`
-
-Se invoca en `sendQuestion()` cuando el usuario envía su consulta.
-
-**Petición (JSON):**
+Petición (la construye `consultarIA`):
 
 ```json
 {
-  "pregunta": "string",
-  "provincia": "string",
-  "campo_estudio": "string",
-  "colectivo": "string",
-  "experiencia_profesional": "string",
-  "objetivo": "string",
-  "sesion_uuid": "string"
+  "pregunta": "¿Qué cursos hay?",
+  "provincia": "Salamanca",
+  "campo_estudio": "Sanidad",
+  "sesion_uuid": "uuid"
 }
 ```
 
-**Respuesta esperada (JSON):**
+Respuesta esperada:
 
-| Campo | Uso en el widget |
-|---|---|
-| `texto_respuesta` | Si existe, se muestra como mensaje del bot |
-| `fallback_activado` | Booleano que dispara la lógica de fallback |
-| `error` | En respuestas no exitosas, se usa como mensaje del error lanzado |
+```json
+{
+  "texto_respuesta": "…",
+  "requiere_accion_comercial": false,
+  "fallback_activado": false
+}
+```
 
-### 7.2 `POST /api/chat/lead/`
+El widget también acepta la clave `respuesta` como alternativa a `texto_respuesta` por si el backend la cambia. Si la respuesta HTTP no es 2xx, lee `data.error` para el mensaje.
 
-Se invoca en `sendLead()` al enviar el formulario de contacto.
-
-**Petición (JSON):**
+### `POST /api/chat/lead/`
 
 ```json
 {
@@ -161,112 +143,104 @@ Se invoca en `sendLead()` al enviar el formulario de contacto.
   "provincia": "string",
   "campo_estudio": "string",
   "colectivo": "string",
-  "experiencia_profesional": "string",
-  "objetivo": "string",
-  "sesion_uuid": "string"
+  "consentimiento_rgpd": true,
+  "sesion_uuid": "uuid"
 }
 ```
 
-**Respuesta esperada:** el campo `mensaje` se muestra al usuario; si no viene, se muestra un texto de agradecimiento por defecto. En caso de error se usa el campo `error`.
+- Email y teléfono son **alternativos**: al menos uno es obligatorio (se valida en el widget; el backend debe validarlo también).
+- `colectivo` es obligatorio porque lo exige el contrato.
+- Los campos de contacto que el usuario deja vacíos se envían como `""`, no se omiten.
+- Respuesta esperada: `{ "ok": true, "mensaje": "…" }`. El widget muestra `mensaje` al usuario.
 
 ---
 
-## 8. Lógica de fallback
+## 6. Decisiones de diseño y su porqué
 
-El widget lee `fallback_activado` de la respuesta de `/api/chat/ask/`. La lógica está pensada para dar una segunda oportunidad antes de derivar a una persona.
+**Vanilla JS, cero dependencias.** El widget se inserta en webs ajenas. Un framework añadiría peso, riesgo de conflicto de versiones y complejidad de integración. Un solo `<script async>` es lo mínimo posible.
 
-```
-Respuesta del backend
-├── fallback_activado = false
-│     → reinicia fallbackIntentos a 0
-│     → deja la caja de texto abierta para seguir preguntando
-│
-└── fallback_activado = true
-      ├── 1.er fallo (fallbackIntentos = 1)
-      │     → "No he podido identificar exactamente lo que necesitas.
-      │        ¿Podrías explicármelo de otra manera?"
-      │     → mantiene la caja de texto
-      │
-      └── 2.º fallo (fallbackIntentos ≥ 2)
-            → informa de que se pondrá en contacto al equipo
-            → oculta la caja de texto
-            → muestra el formulario de contacto (showLeadForm)
-```
+**IIFE (`(function(){ ... })()`).** Mantiene todas las variables fuera del ámbito global. Evita choques con el JS de la web anfitriona.
 
-**Formulario de contacto (`showLeadForm`).** Oculta la caja de texto y las opciones, y muestra el formulario con nombre, email y teléfono (los tres obligatorios, con `autocomplete` apropiado). Al enviarlo:
+**Shadow DOM (`attachShadow({ mode: "open" })`).** Aísla el CSS en ambos sentidos: los estilos de la página no rompen el widget y los del widget no se filtran a la página. Por eso `:host { all: initial; }` resetea lo heredado. Los ids internos (`$("chatbot-toggle")`) se buscan con `root.getElementById`, no con `document`.
 
-1. Se valida que los tres campos estén rellenos.
-2. Se guardan en el estado y se muestran como mensajes del usuario.
-3. `sendLead()` los envía junto con el perfil y el UUID de sesión.
-4. Si va bien, se muestra el mensaje de confirmación, se oculta el formulario y la etapa pasa a `finalizado`, bloqueando nuevos envíos de texto.
+**Todo en un archivo.** Una sola petición de red, un solo artefacto que versionar y cachear. Por eso `build.mjs` está pensado para inyectar el CSS dentro del JS (ver §8).
 
-> **Nota sobre el cumplimiento de la especificación.** La especificación habla de "destruir o esconder" la caja de texto y "montar dinámicamente" el formulario. El widget implementa la variante de **esconder y mostrar**: el formulario existe en la plantilla desde el inicio, oculto con el atributo `hidden`.
+**`z-index: 2147483647`.** Es el máximo permitido; garantiza que el widget quede encima de menús y banners de cookies de la web anfitriona.
+
+**UUID de sesión en `sessionStorage`.** Identifica la conversación para el backend (la app `leads` usa `sesion_uuid` **sin ForeignKey**, así que no hace falta que exista un modelo de sesión previo). `sessionStorage` desaparece al cerrar la pestaña, lo que encaja con la privacidad: no hay identificador persistente. Si `crypto.randomUUID` no existe, hay un fallback con `Date.now()` + aleatorio.
+
+**Los mocks sustituyen al backend (sección 5 de la guía del proyecto).** El backend RAG lo desarrolla otra persona (Dev A). Con `MOCK_API` el frontend avanza y se prueba el flujo completo sin esperar. Hay dos mocks de `ask` precisamente para poder forzar el camino del formulario de leads.
+
+**`pedirRespuestaIA` y `enviarLead` son los únicos puntos que tocan la red.** Todo el resto del widget no sabe si habla con un mock o con Django. Cambiar de entorno es cambiar una constante. `consultarIA` traduce el contrato del backend al vocabulario interno (`entendida`, `solicitarDatos`, `texto`).
+
+**Perfilado con botones, no texto libre.** Provincia y área tienen valores cerrados (`PROVINCIAS`, `CURSOS`). Se obtienen datos limpios y comparables para el lead y para filtrar en el RAG, sin depender de que la IA interprete texto.
+
+**Doble disparador del formulario de lead.**
+- Inmediato si `fallback_activado` o `requiere_accion_comercial` son `true`.
+- Si la IA "no entiende" (`entendida === false`): 1.er intento → pide reformular; 2.º intento → formulario. Así no se frustra al usuario con un bucle.
+
+**Consentimiento RGPD explícito.** El checkbox es obligatorio y se envía como `consentimiento_rgpd`. El texto de privacidad enlaza a `/politica-de-privacidad/` (ruta del sitio anfitrión, ajustar si cambia).
+
+**Uso de `textContent` para mensajes.** Evita XSS: el texto de la IA o del usuario nunca se interpreta como HTML. (El único `innerHTML` con contenido variable es el indicador de "escribiendo", que es estático.)
+
+**Accesibilidad.** `role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-expanded` en el botón, `aria-live="polite"` en los mensajes, etiquetas `<label>` en el formulario y gestión del foco al abrir/cerrar.
 
 ---
 
-## 9. Accesibilidad y navegación por teclado
+## 7. Cómo funciona por dentro (mapa del código)
 
-| Aspecto | Implementación |
+Flujo de estado: `state.etapa` pasa por `provincia` → `campo` → `pregunta`.
+
+| Función | Para qué sirve |
 |---|---|
-| Rol del panel | `role="dialog"`, `aria-modal="true"`, `aria-labelledby="chatbot-title"` |
-| Botón flotante | `aria-label`, `aria-expanded` actualizado al abrir/cerrar, `aria-controls` |
-| Mensajes | Región `aria-live="polite"`: los lectores de pantalla anuncian cada mensaje nuevo |
-| Opciones | Grupo con `role="group"` y `aria-label`; cada botón con su `aria-label` |
-| Foco al avanzar | Se enfoca el primer botón de opciones o la caja de texto, según la etapa |
-| Cierre | Tecla **Esc** cierra el panel y devuelve el foco al botón flotante |
-| Envío | **Enter** envía la pregunta; **Shift + Enter** inserta salto de línea |
-| Focus trap | Con **Tab** y **Shift + Tab** el foco circula solo por los elementos visibles y habilitados dentro del panel |
+| `getSession()` | Lee o crea el UUID en `sessionStorage`. |
+| `addMessage(texto, tipo)` | Añade burbuja `bot` o `user` y hace scroll. |
+| `showTyping()` / `hideTyping()` | Indicador de "escribiendo". |
+| `showOptions(lista)` / `clearOptions()` | Botones de perfilado. |
+| `start()` | Reinicia el estado, limpia mensajes/formularios y muestra la bienvenida. |
+| `selectOption(valor)` | Avanza de etapa en el perfilado. |
+| `respuestaLocal(pregunta)` | Respuestas por palabras clave (modo `USAR_IA=false`). |
+| `pedirRespuestaIA(payload)` | Mock o `fetch` real a `/api/chat/ask/`. |
+| `consultarIA(pregunta)` | Orquesta y normaliza la respuesta. |
+| `procesarPregunta(pregunta)` | Ciclo completo de una pregunta: typing → respuesta → ¿lead? |
+| `showLead()` | Oculta la caja de texto y muestra el formulario. |
+| `enviarLead(payload)` / `sendLead()` | Mock o `fetch` real a `/api/chat/lead/`. |
 
-El focus trap considera únicamente elementos visibles del panel, de modo que se adapta a cada etapa (botones, textarea o formulario de lead).
-
----
-
-## 10. Gestión de errores y estados de carga
-
-- `isLoading` evita envíos duplicados (consulta o lead) mientras hay una petición en curso.
-- Los botones de envío se deshabilitan durante la petición y se rehabilitan en el bloque `finally`.
-- Errores de red o respuestas no exitosas muestran un mensaje genérico al usuario ("No hemos podido procesar tu consulta" / "No hemos podido enviar tus datos") y el detalle técnico se registra en `console.error`.
-- Tras un error, el usuario puede reintentar sin reiniciar el chat.
+Eventos: `Enter` envía (Shift+Enter hace salto de línea); el botón flotante alterna abrir/cerrar; la `×` cierra.
 
 ---
 
-## 11. Matriz de cumplimiento frente a la especificación
+## 8. Puntos pendientes y discrepancias conocidas
 
-| Requisito | Estado | Observaciones |
-|---|---|---|
-| Vanilla JS y CSS encapsulado | Cumplido | Shadow DOM + IIFE |
-| Salida en `chatbot.min.js` | Depende del build | El código está preparado como archivo único |
-| Integración con `<script async>` | Cumplido | No depende del orden de carga |
-| Botón flotante inferior derecha | Cumplido | Posición definida en el CSS |
-| Panel colapsable | Cumplido | |
-| Caja de texto libre | Cumplido | Disponible tras el perfilado |
-| Selectores `provincia`, `campo_estudio`, `colectivo` | Cumplido con variación de diseño | Implementados como preguntas guiadas con botones, junto a `experiencia` y `objetivo` |
-| Aislamiento de variables | Cumplido | |
-| Navegación por teclado, ARIA y focus trap | Cumplido | Ver sección 9 |
-| UUID de sesión en `sessionStorage` | Cumplido con variación | Se regenera en cada apertura del chat (decisión de diseño) |
-| Llamada a `/api/chat/ask/` | Cumplido | |
-| Lectura de `fallback_activado` | Cumplido | Con lógica de dos intentos |
-| Formulario de leads a `/api/chat/lead/` | Parcial | Falta el consentimiento RGPD (ver sección 12) |
+Revisados leyendo el código tal como está en el ZIP. Conviene resolverlos antes de producción.
+
+1. **`src/chatbot.css` no se usa.** `build.mjs` busca el marcador `"__CHATBOT_CSS__"` en `chatbot.js` para inyectar el CSS minificado, pero ese marcador **no existe**: el CSS vive duplicado dentro de `chatbot.js` en la constante `STYLES`. Hoy el build solo minifica el JS y el CSS "bueno" (`chatbot.css`, que además es distinto: botón de 62 px, `#1d4ed8`, etc.) se ignora. Decidir una fuente única: o se edita `STYLES` y se borra `chatbot.css`, o se restaura el marcador (`<style>${"__CHATBOT_CSS__"}</style>`) y se elimina `STYLES`.
+2. **No hay focus trap real.** Se mueve el foco al abrir/cerrar, pero con `Tab` el foco puede salir del panel aunque el atributo sea `aria-modal="true"`. Es un requisito de accesibilidad definido para el proyecto.
+3. **`Escape` solo cierra desde el `textarea`.** Si el foco está en un botón de opción o en el formulario de lead, no cierra.
+4. **El reinicio al reabrir no está implementado como se decidió.** La decisión de producto fue "cada vez que se abre, conversación nueva y UUID nuevo". El código actual solo llama a `start()` la primera vez (si no hay mensajes) y reutiliza el UUID guardado en `sessionStorage` mientras dure la pestaña. Además, `getSession()` se ejecuta una sola vez al cargar. Para cumplir la decisión: en el click de apertura llamar a `start()` siempre y regenerar el UUID (borrar `SESSION_KEY` y volver a asignar `state.sessionUuid`).
+5. **El `placeholder` del `textarea` no se ve.** El `<textarea>` del template contiene saltos de línea y espacios entre las etiquetas, lo que cuenta como valor; el placeholder solo aparece con el campo vacío. Cerrar la etiqueta pegada: `<textarea ...></textarea>`.
+6. **`MOCK_API = true` por defecto** (ver §4). Riesgo de desplegar con mocks.
+7. **`MOCK_BASE = "/static/"`** asume que Django (o el servidor) sirve los JSON en esa ruta; fuera de eso, el modo mock falla con "No se encontró el archivo de prueba".
+8. **Sin CSRF.** Si los endpoints de Django usan protección CSRF por sesión, los `fetch` POST necesitarán el token (o los endpoints tendrán que ser `csrf_exempt` con otra protección). Coordinar con el backend.
+9. **Rutas absolutas** `/api/chat/...` y `/politica-de-privacidad/`: el widget debe servirse desde el mismo origen o habría que parametrizar la URL base y configurar CORS.
+10. **Validación solo en cliente.** El backend debe revalidar (email/teléfono alternativos, RGPD, longitud de campos).
 
 ---
 
-## 12. Pendientes y puntos a validar
+## 9. Receta para añadir cosas
 
-1. **Consentimiento RGPD.** La especificación del backend rechaza con `HTTP 400` los leads con `consentimiento_rgpd = false`, pero el formulario no tiene casilla de consentimiento y `sendLead()` no envía ese campo. Hay que añadir una casilla obligatoria y enviar `consentimiento_rgpd` en el payload.
-2. **Token CSRF.** Si los endpoints de Django no están exentos de CSRF, las peticiones POST devolverán 403. Hay que decidir entre eximir los endpoints o enviar el token.
-3. **Origen de las peticiones.** Las rutas `/api/chat/...` son relativas, por lo que funcionan si el widget se sirve desde el mismo dominio que el backend. Para incrustarlo en dominios distintos se necesitaría una URL base configurable y CORS.
-4. **Campos adicionales del lead.** El widget envía `experiencia_profesional` y `objetivo`; hay que confirmar que el modelo `Lead` los almacena o decidir si se descartan.
-5. **Valor del campo `colectivo`.** Hoy se envía "Sí" o "No" (pregunta de situación laboral). Conviene acordar con el backend si se transforma a categorías explícitas.
-6. **Indicador de carga.** No hay indicador visual ("escribiendo...") mientras se espera respuesta.
-7. **Disponibilidad de `sessionStorage`.** No se controlan los entornos donde el acceso a `sessionStorage` lanza excepción (algunos modos de navegación privada restrictivos).
-8. **Inyección del CSS en el build.** La constante `STYLES` debe contener el CSS real o ser reemplazada por el proceso de build; si queda como marcador de posición, el widget se muestra sin estilos.
+- **Nueva pregunta de perfilado** (p. ej. situación laboral): añadir la lista de opciones, un campo en `state`, una etapa nueva en `selectOption` y, si procede, incluirlo en los payloads de `ask` y `lead` (y acordarlo con el backend).
+- **Cambiar provincias o áreas:** editar `PROVINCIAS` y `CURSOS` al principio de `chatbot.js`.
+- **Cambiar estilos:** ver punto 1 de §8 antes de tocar nada.
+- **Cambiar de mock a IA real:** `MOCK_API = false`, `npm run build`, redesplegar `chatbot.min.js`.
 
 ---
 
-## 13. Siguiente fase: integración de IA
+## 10. Lista de comprobación antes de publicar
 
-La fase de perfilado queda completa y el contexto del usuario está disponible en el estado. La integración de IA afectará principalmente a `/api/chat/ask/`:
-
-- El payload ya incluye el perfil completo y la sesión, que pueden usarse como contexto del modelo.
-- El widget no necesita cambios estructurales: basta con que el backend devuelva `texto_respuesta` y `fallback_activado` con el mismo contrato.
-- Mientras la IA no esté disponible, el endpoint puede devolver una respuesta fija con `fallback_activado: false` para probar el ciclo completo.
+- [ ] `MOCK_API = false` y `USAR_IA = true`
+- [ ] `npm ci && npm run build` ejecutado; se despliega `build/chatbot.min.js` minificado
+- [ ] Endpoints `/api/chat/ask/` y `/api/chat/lead/` responden con el contrato de §5
+- [ ] CSRF/CORS resueltos con el backend
+- [ ] Enlace de política de privacidad correcto
+- [ ] Prueba manual: perfilado, pregunta normal, fallback → lead, lead enviado, teclado (Tab/Enter/Esc), móvil (<480 px)
