@@ -24,7 +24,7 @@ def generar_respuesta_ia(pregunta: str, resultados: list) -> dict:
 
     # Prompt reestructurado (Fase 4.3: Idioma, Tono, Formato y Anti-Alucinación)
     prompt = (
-        "Eres el asistente virtual experto en formación y empleo de CEFYE en Castilla y León. "
+        "Eres el asistente virtual experto en formación y empleo de CEFYE, únicamente en Castilla y León. "
         "Tu objetivo es recomendar cursos basándote ÚNICAMENTE en el contexto proporcionado.\n\n"
         "REGLAS ESTRICTAS:\n"
         "1. IDIOMA Y TONO: Responde siempre en español. Mantén un tono profesional, empático y directo. Trata al usuario de tú.\n"
