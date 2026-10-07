@@ -16,7 +16,7 @@
      * MOCK_API = true  -> respuestas de prueba (archivos JSON)
      * MOCK_API = false -> IA real de Dev A (/api/chat/ask/)
      */
-    const MOCK_API = true;
+    const MOCK_API = false; // Producción: false → llama a /api/chat/ask/ real
 
     /*
      * Solo importa si MOCK_API es true.

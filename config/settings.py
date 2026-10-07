@@ -132,9 +132,9 @@ CSRF_TRUSTED_ORIGINS = env.list(
 RATELIMIT_USE_CACHE = 'default'
 
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'django_cache_table',
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache_table",
     }
 }
 
