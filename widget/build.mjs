@@ -1,5 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { transform } from "esbuild";
+import {fs }from 'fs'
+
 
 const css = readFileSync("src/chatbot.css", "utf8");
 const js = readFileSync("src/chatbot.js", "utf8");
