@@ -17,21 +17,22 @@ services:
       - internal
 
   ollama:
-    image: ollama/ollama:0.9.6
+    image: ollama/ollama:latest
     container_name: ollama_service
     environment:
       - OLLAMA_KEEP_ALIVE=24h
+      - CUDA_VISIBLE_DEVICES=""   # Fuerza el modo CPU puro evitando cualquier intento de carga CUDA
+      - OLLAMA_NUM_THREADS=4      # Acota el número de hilos de CPU (ajusta según los cores del servidor)
+    deploy:
+      resources:
+        limits:
+          memory: 6G              # Límite duro de RAM para evitar fugas de memoria o caídas por OOM
+        reservations:
+          memory: 4G              # Reserva mínima garantizada
     volumes:
       - ollama_models:/root/.ollama
     ports:
       - "11434:11434"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     networks:
       - internal
 
@@ -48,7 +49,7 @@ services:
 
   web:
     build: .
-    command: sh -c "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --worker-class gthread --threads 10"
+    command: sh -c "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 300"
     volumes:
       - .:/app
       - static_volume:/app/staticfiles

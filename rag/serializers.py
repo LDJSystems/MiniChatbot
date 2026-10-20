@@ -1,8 +1,8 @@
+# rag/serializers.py
 from rest_framework import serializers
 
 
 class ChatRequestSerializer(serializers.Serializer):
-    # Campo principal — obligatorio
     pregunta = serializers.CharField(
         max_length=1000,
         required=True,
@@ -14,12 +14,11 @@ class ChatRequestSerializer(serializers.Serializer):
         }
     )
 
-    # Filtros geográficos / temáticos — todos opcionales, vienen en el nivel raíz
-    provincia     = serializers.CharField(required=False, allow_blank=True, default='')
-    campo_estudio = serializers.CharField(required=False, allow_blank=True, default='')
-    colectivo     = serializers.CharField(required=False, allow_blank=True, default='')
+    provincia = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    colectivo = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
-    # Trazabilidad de sesión — opcional, no se usa en el RAG pero se puede registrar
+    # sesion_uuid: opcional para mantener compatibilidad con clientes anteriores.
+    # Cuando no se envía, el contexto conversacional no está disponible.
     sesion_uuid = serializers.UUIDField(required=False, allow_null=True, default=None)
 
     def validate(self, attrs):
@@ -28,10 +27,10 @@ class ChatRequestSerializer(serializers.Serializer):
         a partir de los campos planos, descartando los vacíos.
         """
         filtros = {}
-        for key in ('provincia', 'campo_estudio', 'colectivo'):
-            valor = attrs.get(key, '').strip()
+        for key in ('provincia', 'colectivo'):
+            valor = attrs.get(key, '')
             if valor:
-                filtros[key] = valor
+                filtros[key] = valor.strip()
 
         attrs['filtros'] = filtros
         return attrs

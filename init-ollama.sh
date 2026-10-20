@@ -4,6 +4,6 @@ until curl -s http://ollama:11434/api/tags > /dev/null; do
   sleep 2
 done
 
-echo "Ollama está listo. Verificando/descargando modelo llama3.2:3b..."
-curl -X POST http://ollama:11434/api/pull -d '{"name": "llama3.2:3b"}'
+echo "Ollama está listo. Verificando/descargando modelo qwen2.5:1.5b-instruct..."
+curl -X POST http://ollama:11434/api/pull -d '{"name": "qwen2.5:1.5b-instruct"}'
 echo "Modelo configurado correctamente."

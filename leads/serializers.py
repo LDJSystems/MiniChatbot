@@ -11,6 +11,7 @@ def _normalizar(texto: str) -> str:
 class LeadSerializer(serializers.ModelSerializer):
 
     sesion_uuid = serializers.UUIDField(required=False, allow_null=True)
+    campo_estudio = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = Lead
@@ -22,6 +23,8 @@ class LeadSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "procesado", "creado_en"]
 
     def validate_provincia(self, value):
+        if not value:
+            return value
         valor_norm = _normalizar(value)
         provincias_norm = {_normalizar(p): p for p in PROVINCIAS_CYL}
         if valor_norm not in provincias_norm:

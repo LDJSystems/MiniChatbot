@@ -110,24 +110,26 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Email Backend (Sustituido el obsoleto diccionario MAILERS)
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
-EMAIL_PORT = env.int('EMAIL_PORT', default=587)
-EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
-EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:5500",
+    "http://localhost:5173",
+    "https://cefye.com",
+    "http://localhost",
+    "http://127.0.0.1",
+    "https://www.cefye.com",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:8001",
+    "http://localhost:8001",
+]
 
-# CORS y CSRF Configuration dinámicos desde el .env
-CORS_ALLOWED_ORIGINS = env.list(
-    'CORS_ALLOWED_ORIGINS', 
-    default=["https://cefye.com", "https://www.cefye.com"]
-)
-
-CSRF_TRUSTED_ORIGINS = env.list(
-    'CSRF_TRUSTED_ORIGINS', 
-    default=["https://cefye.com", "https://www.cefye.com"]
-)
+CSRF_TRUSTED_ORIGINS = [
+    "https://cefye.com",
+    "https://www.cefye.com"
+]
 
 RATELIMIT_USE_CACHE = 'default'
 
@@ -143,6 +145,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 RATELIMIT_IP_META_KEY = 'rag.utils.get_client_ip'
 
 OLLAMA_URL = "http://localhost:11434"
+OLLAMA_MODEL = "qwen2.5:1.5b-instruct"
+OLLAMA_TIMEOUT = 240
 
 DEFAULT_CHARSET = 'utf-8'
 
